@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JJYMediaPlayer", "JJYMediaPlayer\JJYMediaPlayer.csproj", "{EA927AF2-7F72-4591-A2DE-6B480FD49FD8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MediaPlayer", "MediaPlayer\MediaPlayer.csproj", "{5E62F838-0195-4F92-A46E-095753D469BD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csproj", "{BE8A30BF-EEDF-4AE5-B321-7C340524A406}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csproj", "{1E9DC463-D9D1-4604-8B93-4F3E99834830}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,14 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{EA927AF2-7F72-4591-A2DE-6B480FD49FD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EA927AF2-7F72-4591-A2DE-6B480FD49FD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EA927AF2-7F72-4591-A2DE-6B480FD49FD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EA927AF2-7F72-4591-A2DE-6B480FD49FD8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BE8A30BF-EEDF-4AE5-B321-7C340524A406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BE8A30BF-EEDF-4AE5-B321-7C340524A406}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BE8A30BF-EEDF-4AE5-B321-7C340524A406}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BE8A30BF-EEDF-4AE5-B321-7C340524A406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E62F838-0195-4F92-A46E-095753D469BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E62F838-0195-4F92-A46E-095753D469BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E62F838-0195-4F92-A46E-095753D469BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E62F838-0195-4F92-A46E-095753D469BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E9DC463-D9D1-4604-8B93-4F3E99834830}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E9DC463-D9D1-4604-8B93-4F3E99834830}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E9DC463-D9D1-4604-8B93-4F3E99834830}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E9DC463-D9D1-4604-8B93-4F3E99834830}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

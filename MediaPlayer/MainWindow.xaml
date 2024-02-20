@@ -1,13 +1,12 @@
-﻿<Window x:Class="JJYMediaPlayer.MainWindow"
+﻿<Window x:Class="MediaPlayer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:JJYMediaPlayer"
+        xmlns:local="clr-namespace:MediaPlayer"
         mc:Ignorable="d"
-        Title="JJYPlayer" Height="450" Width="800">
-    <Border CornerRadius="10 10 0 0" Background="#222222">
-        <Grid>
-        </Grid>
-    </Border>
+        Style="{StaticResource winStyle}"
+        Title="Player" Height="450" Width="800">
+    <Grid>
+    </Grid>
 </Window>
