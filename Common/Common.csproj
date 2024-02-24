@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0-preview.1.24081.2" />
+  </ItemGroup>
+
+
+  <ItemGroup>
     <Resource Include="Theme\Theme1.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Resource>
