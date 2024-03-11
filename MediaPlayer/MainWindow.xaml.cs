@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,9 +20,18 @@ namespace MediaPlayer
     /// </summary>
     public partial class MainWindow : Window
     {
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Add(int a, int b);
+
         public MainWindow()
         {
             InitializeComponent();
+            this.Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            int cResult = Add(1,2);
         }
     }
 }

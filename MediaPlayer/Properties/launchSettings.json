@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MediaPlayer": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
