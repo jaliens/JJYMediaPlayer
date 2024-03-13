@@ -16,12 +16,6 @@
     <Filter Include="ffmpeg">
       <UniqueIdentifier>{034b538f-29df-4616-b01d-37bf454b8b06}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ffmpeg\lib">
-      <UniqueIdentifier>{66eb2110-b457-4539-ab86-59fcc263e784}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="ffmpeg\dll">
-      <UniqueIdentifier>{1679fc02-bd8e-42f1-8079-37f45fa8893a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="ffmpeg\header">
       <UniqueIdentifier>{8aaae26a-4391-41f5-af0f-394240e8fa69}</UniqueIdentifier>
     </Filter>
@@ -491,57 +485,5 @@
     <ClCompile Include="pch.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="ffmpeg\bin\avcodec.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\avdevice.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\avfilter.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\avformat.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\avutil.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\postproc.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\swresample.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-    <Library Include="ffmpeg\bin\swscale.lib">
-      <Filter>ffmpeg\lib</Filter>
-    </Library>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ffmpeg\bin\swscale-7.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\swresample-4.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\postproc-57.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\avutil-58.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\avformat-60.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\avfilter-9.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\avdevice-60.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
-    <None Include="ffmpeg\bin\avcodec-60.dll">
-      <Filter>ffmpeg\dll</Filter>
-    </None>
   </ItemGroup>
 </Project>

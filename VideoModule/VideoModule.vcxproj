@@ -302,26 +302,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <Library Include="ffmpeg\bin\avcodec.lib" />
-    <Library Include="ffmpeg\bin\avdevice.lib" />
-    <Library Include="ffmpeg\bin\avfilter.lib" />
-    <Library Include="ffmpeg\bin\avformat.lib" />
-    <Library Include="ffmpeg\bin\avutil.lib" />
-    <Library Include="ffmpeg\bin\postproc.lib" />
-    <Library Include="ffmpeg\bin\swresample.lib" />
-    <Library Include="ffmpeg\bin\swscale.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ffmpeg\bin\avcodec-60.dll" />
-    <None Include="ffmpeg\bin\avdevice-60.dll" />
-    <None Include="ffmpeg\bin\avfilter-9.dll" />
-    <None Include="ffmpeg\bin\avformat-60.dll" />
-    <None Include="ffmpeg\bin\avutil-58.dll" />
-    <None Include="ffmpeg\bin\postproc-57.dll" />
-    <None Include="ffmpeg\bin\swresample-4.dll" />
-    <None Include="ffmpeg\bin\swscale-7.dll" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

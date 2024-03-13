@@ -23,6 +23,9 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int Add(int a, int b);
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void RunDecodeExample1();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -32,6 +35,7 @@ namespace MediaPlayer
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             int cResult = Add(1,2);
+            RunDecodeExample1();
         }
     }
 }

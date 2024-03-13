@@ -7,7 +7,7 @@
         xmlns:webcammodule="clr-namespace:WebCamModule;assembly=WebCamModule"
         mc:Ignorable="d"
         Style="{StaticResource winStyle}"
-        Title="Player" Height="450" Width="800">
+        Title="Player" Height="300" Width="600">
     <Grid>
         <local:WebCamPlayer/>
     </Grid>

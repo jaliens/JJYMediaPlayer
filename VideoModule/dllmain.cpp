@@ -46,7 +46,6 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
     avformat_network_init();
 
     AVFormatContext* formatContext = nullptr;
-    const AVCodec* codec;
     const AVCodec* videoDecoder = NULL;
     const AVCodec* audioDecoder = NULL;
     AVCodecContext* codecContext = NULL;
@@ -139,6 +138,11 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
         goto end;
     }
 
+    frame = av_frame_alloc();
+    if (!frame) {
+        fprintf(stderr, "Could not allocate video frame\n");
+        return;
+    }
 
     packet = av_packet_alloc();
     if (!packet)
@@ -146,11 +150,7 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
         return;
     }
 
-    frame = av_frame_alloc();
-    if (!frame) {
-        fprintf(stderr, "Could not allocate video frame\n");
-        return;
-    }
+    
 
 
     while (av_read_frame(formatContext, packet) >= 0) {
@@ -161,7 +161,7 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
             ret = avcodec_send_packet(video_dec_ctx, packet);
             if (ret < 0) {
                 fprintf(stderr, "Error submitting a packet for decoding\n");
-                goto end;
+                break;
             }
 
             while (ret >= 0) {
@@ -169,27 +169,37 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
                 if (ret < 0) {
                     // those two return values are special and mean there is no output
                     // frame available, but there were no errors during decoding
-                    if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                        return;
+                    if (ret == AVERROR_EOF)
+                    {
+                        fprintf(stderr, "EOF\n");
+                        ret = 0;
+                        break;
+                    }
+                    else if (ret == AVERROR(EAGAIN))
+                    {
+                        fprintf(stderr, "EAGAIN\n");
+                        ret = 0;
+                        break;
+                    }
 
                     fprintf(stderr, "Error during decoding\n");
-                    return;
+                    break;
                 }
 
                 // write the frame data to output file
                 if (video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO) 
                 {
-
+                    fprintf(stderr, "비디오 패킷 디코디드\n");
                 }
                 else
                 {
-
+                    fprintf(stderr, "패킷 디코디드\n");
                 }
 
 
                 av_frame_unref(frame);
                 if (ret < 0)
-                    return;
+                    break;
             }
         }
         else if (packet->stream_index == audio_stream_idx)
@@ -197,17 +207,21 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
         }
 
         av_packet_unref(packet);
-        if (ret < 0)
-            break;
+        /*if (ret < 0)
+            break;*/
     }
 
 
 end:
+
+
     avcodec_free_context(&video_dec_ctx);
     av_frame_free(&frame);
     av_packet_free(&packet);
     avformat_close_input(&formatContext);
     av_free(video_dst_data[0]);
+
+    fprintf(stderr, "끝\n");
 
     return;
 }
