@@ -1,7 +1,7 @@
 ﻿// dllmain.cpp : DLL 애플리케이션의 진입점을 정의합니다.
 #include "pch.h"
 
-
+//c 헤더를 c++에서 정상적으로 쓰기 위함 (랭글링 때문)
 extern "C" {
     #include <stdio.h>
     #include <stdlib.h>
@@ -13,6 +13,7 @@ extern "C" {
     #include <libavutil/imgutils.h>
     #include <libavutil/samplefmt.h>
     #include <libavutil/timestamp.h>
+    #include <libswscale/swscale.h>
 }
 
 #define INBUF_SIZE 4096
@@ -40,7 +41,7 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 }
 
 /// <summary>
-/// 디먹스, 디코딩 예제
+/// 디먹스, 디코딩 예제(비디오만)
 /// </summary>
 extern "C" __declspec(dllexport) void RunDecodeExample1() {
     avformat_network_init();
@@ -51,11 +52,20 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
     AVCodecContext* codecContext = NULL;
     AVCodecContext* video_dec_ctx = NULL, * audio_dec_ctx;
     AVPacket* packet;
-    AVFrame* frame;
 
     AVStream* videoStream;
     int width, height;
     enum AVPixelFormat pix_fmt;
+
+    AVFrame* frame;
+    AVFrame* afterConvertFrame;
+    enum AVPixelFormat frame_pix_fmt;
+    struct SwsContext* swsCtx;
+    BYTE* img_buffer;
+    int img_bufsize;
+
+
+
     uint8_t* video_dst_data[4] = { NULL };
     int video_dst_linesize[4];
     int video_dst_bufsize;
@@ -143,6 +153,11 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
         fprintf(stderr, "Could not allocate video frame\n");
         return;
     }
+    afterConvertFrame = av_frame_alloc();
+    if (!afterConvertFrame) {
+        fprintf(stderr, "Could not allocate video frame\n");
+        return;
+    }
 
     packet = av_packet_alloc();
     if (!packet)
@@ -153,7 +168,8 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
     
 
 
-    while (av_read_frame(formatContext, packet) >= 0) {
+    while (av_read_frame(formatContext, packet) >= 0) 
+    {
         // check if the packet belongs to a stream we are interested in, otherwise
         // skip it
         if (packet->stream_index == video_stream_idx)
@@ -190,6 +206,51 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
                 if (video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO) 
                 {
                     fprintf(stderr, "비디오 패킷 디코디드\n");
+
+                    width = frame->width;
+                    height= frame->height;
+
+                    //변환 전 이미지 포멧
+                    frame_pix_fmt = (AVPixelFormat)frame->format;
+
+                    // 이미지 포멧을 RGB로 변환 준비
+                    swsCtx = sws_getContext(
+                        width, height, frame_pix_fmt,
+                        width, height, AV_PIX_FMT_RGB24,
+                        SWS_BILINEAR, NULL, NULL, NULL);
+                    if (!swsCtx) {
+                        fprintf(stderr, "이미지 포멧 변환 불가\n");
+                        continue;
+                    }
+
+                    //변환 프레임의 버퍼 할당
+                    if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, width, height, AV_PIX_FMT_RGB24, 1) < 0) {
+                        fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
+                        continue;
+                    }
+
+                    // 변환 실행
+                    sws_scale(swsCtx,
+                        (const uint8_t* const*)frame->data, frame->linesize,
+                        0, height,
+                        afterConvertFrame->data, afterConvertFrame->linesize);
+
+                    // 리소스 해제
+                    sws_freeContext(swsCtx);
+
+
+                    // RGB 데이터에 필요한 버퍼 크기 계산
+                    img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
+                    img_buffer = new BYTE[img_bufsize];
+                    if (!img_buffer)
+                    {
+                        fprintf(stderr, "메모리 할당 실패\n");
+                    }
+
+                    int copyRet = av_image_copy_to_buffer(img_buffer, img_bufsize, afterConvertFrame->data, afterConvertFrame->linesize, AV_PIX_FMT_RGB24, width, height, 1);
+                    if (copyRet < 0) {
+                        delete[] img_buffer;
+                    }
                 }
                 else
                 {
@@ -198,6 +259,7 @@ extern "C" __declspec(dllexport) void RunDecodeExample1() {
 
 
                 av_frame_unref(frame);
+                av_frame_unref(afterConvertFrame);
                 if (ret < 0)
                     break;
             }
