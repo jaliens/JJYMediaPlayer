@@ -4,11 +4,42 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MediaPlayer" 
+        xmlns:common_converter="clr-namespace:Common.Mvvm.Converter;assembly=Common"
         xmlns:webcammodule="clr-namespace:WebCamModule;assembly=WebCamModule"
         mc:Ignorable="d"
         Style="{StaticResource winStyle}"
-        Title="Player" Height="300" Width="600">
+        SizeToContent="WidthAndHeight"
+        Title="Player" >
+    <Window.Resources>
+        <common_converter:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </Window.Resources>
     <Grid>
-        <local:WebCamPlayer/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!--상위 메뉴-->
+        <StackPanel 
+            Grid.Row="1"
+            Orientation="Horizontal">
+            <RadioButton Content="웹캠" Foreground="White" 
+                         GroupName="playerTypeShown"
+                         IsChecked="{Binding IsShowWebcamPlayer}"/>
+            <RadioButton Margin="20 0 0 0" 
+                         Content="파일" Foreground="White"
+                         GroupName="playerTypeShown"
+                         IsChecked="{Binding IsShowFilePlayer}"/>
+        </StackPanel>
+        
+        <!--플레이어-->
+        <local:WebCamPlayer Grid.Row="3" 
+                            Height="300" Width="600"
+                            Visibility="{Binding IsShowWebcamPlayer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        <local:FilePlayer Grid.Row="3" 
+                          Height="300" Width="600"
+                          Visibility="{Binding IsShowFilePlayer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </Grid>
 </Window>

@@ -29,13 +29,14 @@ namespace MediaPlayer
         public MainWindow()
         {
             InitializeComponent();
+            this.DataContext = new MainWindowViewModel();
             this.Loaded += MainWindow_Loaded;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            int cResult = Add(1,2);
-            RunDecodeExample1();
+            //int cResult = Add(1,2);
+            //RunDecodeExample1();
         }
     }
 }
