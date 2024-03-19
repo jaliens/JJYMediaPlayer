@@ -124,7 +124,7 @@ void Player::decodeThreadTask()
     {
         if (this->decodingQueue.empty() == false)
         {
-            AVPacket* packet = decodingQueue.front();
+            AVPacket* packet = this->decodingQueue.front();
             this->decodingQueue.pop();
 
             ret = avcodec_send_packet(this->video_dec_ctx, packet);
@@ -168,11 +168,67 @@ void Player::renderThreadTask()
     //루프
         //랜더큐에서 프레임 추출
         //프레임 랜더링
+
+    //// RGB 데이터에 필요한 버퍼 크기 계산
+    this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
+
+    int ret = 0;
+    while (1)
+    {
+        if (this->renderingQueue.empty() == false)
+        {
+            AVFrame* frame = this->renderingQueue.front();
+            this->renderingQueue.pop();
+
+            if (this->video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO)
+            {
+                AVFrame* afterConvertFrame;
+                afterConvertFrame = av_frame_alloc();
+                if (!afterConvertFrame) {
+                    fprintf(stderr, "새 프레임 할당 실패\n");
+                    continue;
+                }
+                //변환 프레임의 버퍼 할당
+                if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
+                    fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
+                    continue;
+                }
+                this->swsCtx = sws_getContext(
+                    this->width, this->height, this->pix_fmt,
+                    this->width, this->height, AV_PIX_FMT_RGB24,
+                    SWS_BILINEAR, NULL, NULL, NULL);
+                if (!this->swsCtx) {
+                    fprintf(stderr, "이미지 포멧 변환 불가\n");
+                    continue;
+                }
+
+                // 변환 실행
+                sws_scale(this->swsCtx,
+                    (const uint8_t* const*)frame->data, frame->linesize,
+                    0, frame->height,
+                    afterConvertFrame->data, afterConvertFrame->linesize);
+
+                //콜백 메서드 호출
+                if (this->imageDecodedCallback != nullptr)
+                {
+                    this->imageDecodedCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(33));
+                }
+            }
+            else
+            {
+
+            }
+        }
+
+    }
 }
 
 void Player::openFileStream() 
 {
     int ret = 0;
+
+    avformat_network_init();
 
     if (avformat_open_input(&this->formatContext, this->inputFilename, NULL, NULL) < 0) {
         fprintf(stderr, "Could not open source file %s\n", this->inputFilename);

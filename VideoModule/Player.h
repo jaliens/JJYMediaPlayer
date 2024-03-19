@@ -37,6 +37,9 @@ public:
     void decodeThreadTask();
     void renderThreadTask();
     void openFileStream();
+
+    typedef void (*ImgDecodedCallbackFunction)(uint8_t* buf, int size, int width, int height);
+    ImgDecodedCallbackFunction imageDecodedCallback = nullptr;
 private:
     AVFormatContext* formatContext = nullptr; // c++11 이상에선 NULL 보다 nullptr을 사용하면 타입 안전하다
     AVCodecContext* video_dec_ctx = nullptr;
@@ -49,8 +52,12 @@ private:
     int width, height;
     int video_stream_idx = -1;
     int audio_stream_idx = -1;
+    struct SwsContext* swsCtx;
+    int img_bufsize = 0;
+
     const char* inputFilename = "asdf.avi";
     bool isFileStreamOpen = false;
+
 
     std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;
     std::queue<AVFrame*, std::list<AVFrame*>> renderingQueue;

@@ -61,6 +61,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 extern "C" __declspec(dllexport) void RegisterImgDecodedCallback(ImgDecodedCallbackFunction callback) {
     if (callback != nullptr) {
         imageDecodedCallback = callback;
+        if (player != nullptr)
+        {
+            player->imageDecodedCallback = callback;
+        }
     }
 }
 
@@ -164,6 +168,20 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 
 
 
+/// <summary>
+/// 재생
+/// </summary>
+extern "C" __declspec(dllexport) void OpenFileStream()
+{
+    if (player == nullptr)
+    {
+        player = new Player();
+    }
+
+    player->openFileStream();
+
+    return;
+}
 
 
 
@@ -174,16 +192,9 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 /// </summary>
 extern "C" __declspec(dllexport) void Play()
 {
-    if (player == nullptr)
-    {
-        player = new Player();
-    }
-
-    player->openFileStream();
     player->startReadThread();
     player->startDecodeThread();
-    //player->startRenderThread();
-
+    player->startRenderThread();
 
     return;
 }

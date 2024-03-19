@@ -40,6 +40,9 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void Play();
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void OpenFileStream();
+
 
 
         public FilePlayer()
@@ -89,6 +92,8 @@ namespace MediaPlayer
             Task.Run(()=>
             {
                 //RunDecodeExample1();
+                OpenFileStream();
+                RegisterImgDecodedCallback(this._imageCallBack);
                 Play();
             });
         }
