@@ -27,7 +27,11 @@ extern "C" {
     #include <SDL.h>
 }
 
+#include "Player.h"
+
 #define INBUF_SIZE 4096
+
+Player* player = nullptr;
 
 
 
@@ -88,6 +92,143 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/// <summary>
+/// 재생
+/// </summary>
+extern "C" __declspec(dllexport) void Play()
+{
+    if (player == nullptr)
+    {
+        player = new Player();
+    }
+
+    player->openFileStream();
+    player->startReadThread();
+    player->startDecodeThread();
+    //player->startRenderThread();
+
+
+    return;
+}
+
+
+
+
+
+/// <summary>
+/// 재생
+/// </summary>
+extern "C" __declspec(dllexport) void Pause()
+{
+
+
+    return;
+}
+
+
+
+
+
+/// <summary>
+/// 재생
+/// </summary>
+extern "C" __declspec(dllexport) void Stop()
+{
+
+
+    return;
+}
+
+
+
+
+
+/// <summary>
+/// 재생
+/// </summary>
+extern "C" __declspec(dllexport) void Seek()
+{
+
+
+    return;
+}
 
 
 
@@ -276,9 +417,11 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
                 break;
             }
 
-            while (ret >= 0) {
+            while (ret >= 0) 
+            {
                 ret = avcodec_receive_frame(video_dec_ctx, frame);
-                if (ret < 0) {
+                if (ret < 0) 
+                {
                     // those two return values are special and mean there is no output
                     // frame available, but there were no errors during decoding
                     if (ret == AVERROR_EOF)

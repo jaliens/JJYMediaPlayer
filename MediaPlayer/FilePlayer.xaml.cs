@@ -37,6 +37,9 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RunDecodeAndSDLPlayExample();
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Play();
+
 
 
         public FilePlayer()
@@ -85,7 +88,8 @@ namespace MediaPlayer
         {
             Task.Run(()=>
             {
-                RunDecodeExample1();
+                //RunDecodeExample1();
+                Play();
             });
         }
 
