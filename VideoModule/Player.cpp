@@ -83,7 +83,7 @@ int Player::startDecodeThread()
 
 int Player::startRenderThread()
 {
-    std::thread readThread(&Player::renderThreadTask, this);
+    std::thread readThread(&Player::videoRenderThreadTask, this);
     readThread.detach();
     return 0;
 }
@@ -127,43 +127,47 @@ void Player::decodeThreadTask()
             AVPacket* packet = this->decodingQueue.front();
             this->decodingQueue.pop();
 
-            ret = avcodec_send_packet(this->video_dec_ctx, packet);
-            while (ret >= 0)
+            if (packet->stream_index == this->video_stream_idx)
             {
-                AVFrame * frame = av_frame_alloc();
-                /*if (!frame) {
-                    fprintf(stderr, "Could not allocate video frame\n");
-                    return;
-                }*/
-                ret = avcodec_receive_frame(video_dec_ctx, frame);
-                if (ret < 0)
+                ret = avcodec_send_packet(this->video_dec_ctx, packet);
+                while (ret >= 0)
                 {
-                    // those two return values are special and mean there is no output
-                    // frame available, but there were no errors during decoding
-                    if (ret == AVERROR_EOF)
+                    AVFrame* frame = av_frame_alloc();
+                    ret = avcodec_receive_frame(video_dec_ctx, frame);
+                    if (ret < 0)
                     {
-                        fprintf(stderr, "EOF\n");
-                        ret = 0;
-                        break;
-                    }
-                    else if (ret == AVERROR(EAGAIN))
-                    {
-                        fprintf(stderr, "EAGAIN\n");
-                        ret = 0;
+                        // those two return values are special and mean there is no output
+                        // frame available, but there were no errors during decoding
+                        if (ret == AVERROR_EOF)
+                        {
+                            fprintf(stderr, "EOF\n");
+                            ret = 0;
+                            break;
+                        }
+                        else if (ret == AVERROR(EAGAIN))
+                        {
+                            fprintf(stderr, "EAGAIN\n");
+                            ret = 0;
+                            break;
+                        }
+
+                        fprintf(stderr, "디코디드 프레임 가져오다가 실패\n");
                         break;
                     }
 
-                    fprintf(stderr, "디코디드 프레임 가져오다가 실패\n");
-                    break;
+                    this->videoRenderingQueue.push(frame);
                 }
-
-                this->renderingQueue.push(frame);
             }
+            else if (packet->stream_index == this->audio_stream_idx)
+            {
+
+            }
+            
         }
     }
 }
 
-void Player::renderThreadTask()
+void Player::videoRenderThreadTask()
 {
     //루프
         //랜더큐에서 프레임 추출
@@ -175,49 +179,90 @@ void Player::renderThreadTask()
     int ret = 0;
     while (1)
     {
-        if (this->renderingQueue.empty() == false)
+        if (this->videoRenderingQueue.empty() == false)
         {
-            AVFrame* frame = this->renderingQueue.front();
-            this->renderingQueue.pop();
+            AVFrame* frame = this->videoRenderingQueue.front();
+            this->videoRenderingQueue.pop();
 
-            if (this->video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO)
+            //printf("pts : %ld\n", frame->pts);
+
+            int a = frame->pict_type;
+            //printf("type : %ld\n", a);
+
+            //시간 측정
+            //현재 시각
+            //pts가 0이면
+                //현재 시각을 starttime으로 기록
+            //pts가 0이 아니면
+                //현재 시각과 startime의 차이 계산(시작 후 흐른 시간)
+            //pts를 ms 단위로 변환
+            int64_t timeSpent = 0;//시작 후 경과 시간
+            auto now = std::chrono::steady_clock::now();
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+            if (this->isRenderStarted == false)
             {
-                AVFrame* afterConvertFrame;
-                afterConvertFrame = av_frame_alloc();
-                if (!afterConvertFrame) {
-                    fprintf(stderr, "새 프레임 할당 실패\n");
-                    continue;
-                }
-                //변환 프레임의 버퍼 할당
-                if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
-                    fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
-                    continue;
-                }
-                this->swsCtx = sws_getContext(
-                    this->width, this->height, this->pix_fmt,
-                    this->width, this->height, AV_PIX_FMT_RGB24,
-                    SWS_BILINEAR, NULL, NULL, NULL);
-                if (!this->swsCtx) {
-                    fprintf(stderr, "이미지 포멧 변환 불가\n");
-                    continue;
-                }
-
-                // 변환 실행
-                sws_scale(this->swsCtx,
-                    (const uint8_t* const*)frame->data, frame->linesize,
-                    0, frame->height,
-                    afterConvertFrame->data, afterConvertFrame->linesize);
-
-                //콜백 메서드 호출
-                if (this->imageDecodedCallback != nullptr)
-                {
-                    this->imageDecodedCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(33));
-                }
+                this->startTime_ms = now_ms;
+                this->isRenderStarted = true;
             }
             else
             {
+                timeSpent = now_ms - this->startTime_ms;
+            }
+            int64_t pts_ms = frame->pts * videoTimeBase_ms;
 
+            //pts 비교
+            //목표 시간 보다 빠른 경우
+                //기다렸다가 진행
+            if (pts_ms > timeSpent)
+            {
+                int64_t gap_ms = pts_ms - timeSpent;
+                std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
+            }
+
+            //적정 시간 보다 느린 경우
+                //몇 개나 패스해야할지 계산(계산 법 : 차이나는 시간 / 타임 베이스)
+                //다음 프레임으로 패스
+            else if (pts_ms < timeSpent)
+            {
+                int64_t gap_ms = timeSpent - pts_ms;
+                int numToPass = gap_ms / videoTimeBase_ms;
+                if (numToPass > 0)
+                {
+                    continue;
+                }
+            }
+
+            AVFrame* afterConvertFrame;
+            afterConvertFrame = av_frame_alloc();
+            if (!afterConvertFrame) {
+                fprintf(stderr, "새 프레임 할당 실패\n");
+                continue;
+            }
+            //변환 프레임의 버퍼 할당
+            if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
+                fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
+                continue;
+            }
+            this->swsCtx = sws_getContext(
+                this->width, this->height, this->pix_fmt,
+                this->width, this->height, AV_PIX_FMT_RGB24,
+                SWS_BILINEAR, NULL, NULL, NULL);
+            if (!this->swsCtx) {
+                fprintf(stderr, "이미지 포멧 변환 불가\n");
+                continue;
+            }
+
+            // 변환 실행
+            sws_scale(this->swsCtx,
+                (const uint8_t* const*)frame->data, frame->linesize,
+                0, frame->height,
+                afterConvertFrame->data, afterConvertFrame->linesize);
+
+            //콜백 메서드 호출
+            if (this->imageDecodedCallback != nullptr)
+            {
+                this->imageDecodedCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                //std::this_thread::sleep_for(std::chrono::milliseconds(33));
             }
         }
 
@@ -253,6 +298,13 @@ void Player::openFileStream()
     this->video_stream_idx = ret;
     this->videoStream = this->formatContext->streams[video_stream_idx];
     this->videoDecoder = avcodec_find_decoder(this->videoStream->codecpar->codec_id);
+
+    this->videoTimeBase = this->videoStream->time_base;
+    this->videoTimeBase_ms = av_q2d(this->videoTimeBase) * 1000;//s단위 -> ms단위로 변환
+    this->duration_ms = this->videoStream->duration;
+
+    double period = std::chrono::steady_clock::period::num / static_cast<double>(std::chrono::steady_clock::period::den);
+    this->steadyClockTo_ms_coefficient = 1000.0 / period;
 
     if (!this->videoDecoder) {
         fprintf(stderr, "Failed to find %s codec\n",

@@ -35,7 +35,7 @@ public:
     int startRenderThread();
     void readThreadTask();
     void decodeThreadTask();
-    void renderThreadTask();
+    void videoRenderThreadTask();
     void openFileStream();
 
     typedef void (*ImgDecodedCallbackFunction)(uint8_t* buf, int size, int width, int height);
@@ -49,17 +49,25 @@ private:
     AVStream* videoStream = nullptr;
     AVPacket* packet = nullptr;
     enum AVPixelFormat pix_fmt;
+    AVRational videoTimeBase;
+    double videoTimeBase_ms = 0;
+    double steadyClockTo_ms_coefficient = 0; // steadyClock의 단위를 ms로 바꾸기 위한 계수
+    int64_t duration_ms = 0;
+    int64_t startTime_ms = 0;
+    int64_t endTime_ms = 0;
+    bool isRenderStarted = false;
+
     int width, height;
     int video_stream_idx = -1;
     int audio_stream_idx = -1;
     struct SwsContext* swsCtx;
     int img_bufsize = 0;
 
-    const char* inputFilename = "asdf.avi";
+    const char* inputFilename = "dddd.avi";
     bool isFileStreamOpen = false;
 
 
     std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;
-    std::queue<AVFrame*, std::list<AVFrame*>> renderingQueue;
+    std::queue<AVFrame*, std::list<AVFrame*>> videoRenderingQueue;
 };
 
