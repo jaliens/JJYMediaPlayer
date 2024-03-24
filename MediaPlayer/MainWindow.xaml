@@ -4,11 +4,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MediaPlayer" 
+        xmlns:mvvm="clr-namespace:MediaPlayer.Mvvm" 
         xmlns:common_converter="clr-namespace:Common.Mvvm.Converter;assembly=Common"
         xmlns:webcammodule="clr-namespace:WebCamModule;assembly=WebCamModule"
         mc:Ignorable="d"
         Style="{StaticResource winStyle}"
         SizeToContent="WidthAndHeight"
+        DataContext="{Binding MainWindowViewModel, Source={StaticResource ViewModelLocator}}"
         Title="Player" >
     <Window.Resources>
         <common_converter:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>

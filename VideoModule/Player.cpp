@@ -67,8 +67,8 @@ int Player::decode_packet(AVCodecContext* decoderCtx, const AVPacket* pkt)
 
 int Player::startReadThread()
 {
-    std::thread readThread(&Player::readThreadTask, this);
-    readThread.detach();
+    this->readThread = new std::thread(&Player::readThreadTask, this);
+    this->readThread->detach();
     //readThread.join();
     return 0;
 }
@@ -76,15 +76,18 @@ int Player::startReadThread()
 
 int Player::startDecodeThread()
 {
-    std::thread readThread(&Player::decodeThreadTask, this);
-    readThread.detach();
+    this->decodeThread = new std::thread(&Player::decodeThreadTask, this);
+    this->decodeThread->detach();
     return 0;
 }
 
 int Player::startRenderThread()
 {
-    std::thread readThread(&Player::videoRenderThreadTask, this);
-    readThread.detach();
+    this->renderThread = new std::thread(&Player::videoRenderThreadTask, this);
+    this->renderThread->detach();
+
+    this->progressCheckingThread = new std::thread(&Player::progressCheckingThreadTask, this);
+    this->progressCheckingThread->detach();
     return 0;
 }
 
@@ -96,7 +99,7 @@ void Player::readThreadTask()
         //리드된 패킷을 디코드 큐에 넣음.
     
 
-    while (1)
+    while (this->isPaused == false)
     {
         AVPacket* packet = av_packet_alloc();
         if (av_read_frame(this->formatContext, packet) >= 0)
@@ -120,7 +123,7 @@ void Player::decodeThreadTask()
                 //랜더큐에 넣음
 
     int ret = 0;
-    while (1)
+    while (this->isPaused == false)
     {
         if (this->decodingQueue.empty() == false)
         {
@@ -160,9 +163,12 @@ void Player::decodeThreadTask()
             }
             else if (packet->stream_index == this->audio_stream_idx)
             {
-
+                
             }
-            
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }
@@ -177,7 +183,7 @@ void Player::videoRenderThreadTask()
     this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
 
     int ret = 0;
-    while (1)
+    while (this->isPaused == false)
     {
         if (this->videoRenderingQueue.empty() == false)
         {
@@ -186,8 +192,8 @@ void Player::videoRenderThreadTask()
 
             //printf("pts : %ld\n", frame->pts);
 
-            int a = frame->pict_type;
-            //printf("type : %ld\n", a);
+            /*int a = frame->pict_type;
+            printf("type : %ld\n", a);*/
 
             //시간 측정
             //현재 시각
@@ -201,6 +207,7 @@ void Player::videoRenderThreadTask()
             auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
             if (this->isRenderStarted == false)
             {
+                this->startPts_ms = frame->pts * videoTimeBase_ms;
                 this->startTime_ms = now_ms;
                 this->isRenderStarted = true;
             }
@@ -232,6 +239,11 @@ void Player::videoRenderThreadTask()
                 }
             }
 
+            if (this->onVideoProgressCallback != nullptr)
+            {
+                this->progress_ms = pts_ms - this->startPts_ms;
+            }
+
             AVFrame* afterConvertFrame;
             afterConvertFrame = av_frame_alloc();
             if (!afterConvertFrame) {
@@ -259,13 +271,26 @@ void Player::videoRenderThreadTask()
                 afterConvertFrame->data, afterConvertFrame->linesize);
 
             //콜백 메서드 호출
-            if (this->imageDecodedCallback != nullptr)
+            if (this->onImageDecodeCallback != nullptr)
             {
-                this->imageDecodedCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
                 //std::this_thread::sleep_for(std::chrono::milliseconds(33));
             }
         }
 
+    }
+}
+
+//0.5초 마다 프로그래스 체크
+void Player::progressCheckingThreadTask()
+{
+    while (1)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (this->isPaused == false)
+        {
+            this->onVideoProgressCallback(this->progress_ms);
+        }
     }
 }
 
@@ -301,7 +326,12 @@ void Player::openFileStream()
 
     this->videoTimeBase = this->videoStream->time_base;
     this->videoTimeBase_ms = av_q2d(this->videoTimeBase) * 1000;//s단위 -> ms단위로 변환
-    this->duration_ms = this->videoStream->duration;
+    this->duration_ms = this->videoStream->duration * av_q2d(this->videoTimeBase) * 1000;
+
+    if (this->onVideoLengthCallback != nullptr)
+    {
+        this->onVideoLengthCallback((double)this->duration_ms);
+    }
 
     double period = std::chrono::steady_clock::period::num / static_cast<double>(std::chrono::steady_clock::period::den);
     this->steadyClockTo_ms_coefficient = 1000.0 / period;
@@ -341,4 +371,52 @@ void Player::openFileStream()
     this->pix_fmt = this->video_dec_ctx->pix_fmt;
 
     this->isFileStreamOpen = true;
+}
+
+int Player::pause()
+{
+    this->isPaused = true;
+    return 0;
+}
+
+int Player::resume()
+{
+    this->isPaused = false;
+    return 0;
+}
+
+int Player::stop()
+{
+
+    return 0;
+}
+
+void Player::RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback)
+{
+    this->onVideoLengthCallback = callback;
+}
+
+void Player::RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback)
+{
+    this->onVideoProgressCallback = callback;
+}
+
+void Player::RegisterOnImageDecodeCallback(OnImgDecodeCallbackFunction callback)
+{
+    this->onImageDecodeCallback = callback;
+}
+
+void Player::RegisterOnStartCallback(OnStartCallbackFunction callback)
+{
+    this->onStartCallbackFunction = callback;
+}
+
+void Player::RegisterOnPauseCallback(OnPauseCallbackFunction callback)
+{
+    this->onPauseCallbackFunction = callback;
+}
+
+void Player::RegisterOnResumeCallback(OnResumeCallbackFunction callback)
+{
+    this->onResumeCallbackFunction = callback;
 }

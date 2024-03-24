@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MediaPlayer.Mvvm;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -13,5 +14,17 @@ namespace MediaPlayer
     /// </summary>
     public partial class App : Application
     {
+        public static DialogService DialogService { get; } = new DialogService();
+
+        public App()
+        {
+            this.Startup += OnStartup;
+            
+        }
+
+        private void OnStartup(object sender, StartupEventArgs e)
+        {
+            DialogService.ShowDialog("MainWindowViewModel");
+        }
     }
 }

@@ -11,8 +11,10 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Ink;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
@@ -25,11 +27,72 @@ namespace MediaPlayer
     {
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void ImageCallback(IntPtr data, int size, int width, int height);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnVideoLengthCallbackFunction(double length);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnVideoProgressCallbackFunction(double progress);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnStartCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnPauseCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnResumeCallbackFunction();
 
         ImageCallback? _imageCallBack = null;
+        OnVideoLengthCallbackFunction? _videoLengthCallback = null;
+        OnVideoProgressCallbackFunction? _videoProgressCallback = null;
+        OnStartCallbackFunction? _startCallback = null;
+        OnPauseCallbackFunction? _pauseCallback = null;
+        OnResumeCallbackFunction? _resumeCallback = null;
+
+
+
+
+
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void RegisterImgDecodedCallback(ImageCallback callback);
+        private static extern void RegisterOnImgDecodeCallback(ImageCallback callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnStartCallback(OnStartCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnPauseCallback(OnPauseCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
+
+
+
+
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void CreatePlayer();
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void OpenFileStream();
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Play();
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Pause();
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Stop();
+
+        
+
+
+
+
+
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RunDecodeExample1();
@@ -37,11 +100,23 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RunDecodeAndSDLPlayExample();
 
-        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void Play();
 
-        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void OpenFileStream();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -49,12 +124,21 @@ namespace MediaPlayer
         {
             this.InitializeComponent();
             this.Loaded += this.OnFilePlayer_Loaded;
+
+            this._imageCallBack = this.OnImageCallback;
+            this._videoLengthCallback = this.OnVideoLengthCallback;
+            this._videoProgressCallback = this.OnVideoProgressCallback;
         }
+
+        
 
         private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
         {
-            this._imageCallBack = this.OnImageCallback;
-            RegisterImgDecodedCallback(this._imageCallBack);
+            CreatePlayer();
+            RegisterOnImgDecodeCallback(this._imageCallBack);
+            RegisterOnVideoLengthCallback(this._videoLengthCallback);
+            RegisterOnVideoProgressCallback(this._videoProgressCallback);
+            OpenFileStream();
             GC.KeepAlive(this._imageCallBack);
         }
 
@@ -68,32 +152,28 @@ namespace MediaPlayer
                 int stride = width * bytesPerPixel;
                 bitmap.WritePixels(new Int32Rect(0, 0, width, height), data, width * height * bytesPerPixel, stride);
                 bitmap.Unlock();
-            // Image 컨트롤에 BitmapSource를 할당
-            
                 this.img_videoImage.Source = bitmap;
             });
+        }
 
+        private void OnVideoLengthCallback(double length)
+        {
+            this.videoSlider.Maximum = length;
+        }
 
-
-            //byte[] managedArray = new byte[size];
-            //Marshal.Copy(data, managedArray, 0, size);
-            //var imageSource = this.ByteArrayToImageSource(managedArray);
-            //if (imageSource == null)
-            //{
-            //    return;
-            //}
-            //Application.Current.Dispatcher.Invoke(() => { 
-            //    this.img_videoImage.Source = imageSource;
-            //});
+        private void OnVideoProgressCallback(double progress)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                this.videoSlider.Value = progress;
+            });
+            
         }
 
         private void OnPlayButtonClick(object sender, RoutedEventArgs e)
         {
             Task.Run(()=>
             {
-                //RunDecodeExample1();
-                OpenFileStream();
-                RegisterImgDecodedCallback(this._imageCallBack);
                 Play();
             });
         }
@@ -131,6 +211,11 @@ namespace MediaPlayer
             {
                 RunDecodeAndSDLPlayExample();
             });
+        }
+
+        private void OnPauseButtonClick(object sender, RoutedEventArgs e)
+        {
+            Pause();
         }
     }
 }

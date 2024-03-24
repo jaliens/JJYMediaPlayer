@@ -33,12 +33,13 @@
             <Button
                 Grid.Column="2"
                 Content="∥"
-                Click="OnPlayButtonClick"/>
+                Click="OnPauseButtonClick"/>
             <Button
                 Grid.Column="2"
                 Content="▶"
                 Click="OnPlayButtonClick"/>
             <Slider 
+                x:Name="videoSlider"
                 Grid.Column="3"
                 VerticalAlignment="Center"/>       
         </Grid>

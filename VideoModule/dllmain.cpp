@@ -36,8 +36,8 @@ Player* player = nullptr;
 
 
 // 콜백 함수 타입 정의
-typedef void (*ImgDecodedCallbackFunction)(uint8_t* buf, int size, int width, int height);
-ImgDecodedCallbackFunction imageDecodedCallback = nullptr;
+//typedef void (*ImgDecodedCallbackFunction)(uint8_t* buf, int size, int width, int height);
+//ImgDecodedCallbackFunction imageDecodedCallback = nullptr;
 
 
 
@@ -58,15 +58,53 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 // 콜백 함수 등록
-extern "C" __declspec(dllexport) void RegisterImgDecodedCallback(ImgDecodedCallbackFunction callback) {
-    if (callback != nullptr) {
-        imageDecodedCallback = callback;
-        if (player != nullptr)
-        {
-            player->imageDecodedCallback = callback;
-        }
+extern "C" __declspec(dllexport) void CreatePlayer()
+{
+    if (player == nullptr)
+    {
+        player = new Player();
     }
 }
+
+extern "C" __declspec(dllexport) void RegisterOnImgDecodeCallback(OnImgDecodeCallbackFunction callback) 
+{
+    player->RegisterOnImageDecodeCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback)
+{
+    player->RegisterOnVideoLengthCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback)
+{
+    player->RegisterOnVideoProgressCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnStartCallback(OnStartCallbackFunction callback)
+{
+    player->RegisterOnStartCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnPauseCallback(OnPauseCallbackFunction callback)
+{
+    player->RegisterOnPauseCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnResumeCallback(OnResumeCallbackFunction callback)
+{
+    player->RegisterOnResumeCallback(callback);
+}
+
+
+
+
+
+
+
+
+
+
 
 extern "C" __declspec(dllexport) int Add(int a, int b) {
     unsigned version = avformat_version();
@@ -175,7 +213,7 @@ extern "C" __declspec(dllexport) void OpenFileStream()
 {
     if (player == nullptr)
     {
-        player = new Player();
+        return;
     }
 
     player->openFileStream();
@@ -193,7 +231,9 @@ extern "C" __declspec(dllexport) void OpenFileStream()
 extern "C" __declspec(dllexport) void Play()
 {
     player->startReadThread();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     player->startDecodeThread();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     player->startRenderThread();
 
     return;
@@ -208,7 +248,7 @@ extern "C" __declspec(dllexport) void Play()
 /// </summary>
 extern "C" __declspec(dllexport) void Pause()
 {
-
+    player->pause();
 
     return;
 }
@@ -222,7 +262,7 @@ extern "C" __declspec(dllexport) void Pause()
 /// </summary>
 extern "C" __declspec(dllexport) void Stop()
 {
-
+    player->stop();
 
     return;
 }
@@ -498,11 +538,11 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
                     img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
 
                     //콜백 메서드 호출
-                    if (imageDecodedCallback != nullptr)
+                    /*if (player->onImageDecodeCallback != nullptr)
                     {
-                        imageDecodedCallback(afterConvertFrame->data[0], img_bufsize, width, height);
+                        player->onImageDecodeCallback(afterConvertFrame->data[0], img_bufsize, width, height);
                         std::this_thread::sleep_for(std::chrono::milliseconds(33));
-                    }
+                    }*/
                     
                 }
                 else
@@ -888,11 +928,11 @@ extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample()
                     img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
 
                     //콜백 메서드 호출
-                    if (imageDecodedCallback != nullptr)
-                    {
-                        //imageDecodedCallback(*(afterConvertFrame->data), img_bufsize);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(33));
-                    }
+                    //if (player->onImageDecodeCallback != nullptr)
+                    //{
+                    //    //imageDecodedCallback(*(afterConvertFrame->data), img_bufsize);
+                    //    std::this_thread::sleep_for(std::chrono::milliseconds(33));
+                    //}
 
                 }
                 else
