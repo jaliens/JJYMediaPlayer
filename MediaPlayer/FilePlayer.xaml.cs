@@ -87,7 +87,10 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void Stop();
 
-        
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void JumpPlayTime(double targetPercent);
+
+
 
 
 
@@ -158,24 +161,23 @@ namespace MediaPlayer
 
         private void OnVideoLengthCallback(double length)
         {
-            this.videoSlider.Maximum = length;
+            this.slider_video.Maximum = length;
         }
 
         private void OnVideoProgressCallback(double progress)
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                this.videoSlider.Value = progress;
+                this.slider_video.Value = progress;
             });
             
         }
 
         private void OnPlayButtonClick(object sender, RoutedEventArgs e)
         {
-            Task.Run(()=>
-            {
-                Play();
-            });
+            Play();
+            this.btn_pause.Visibility = Visibility.Visible;
+            this.btn_play.Visibility = Visibility.Hidden;
         }
 
 
@@ -216,6 +218,13 @@ namespace MediaPlayer
         private void OnPauseButtonClick(object sender, RoutedEventArgs e)
         {
             Pause();
+            this.btn_play.Visibility = Visibility.Visible;
+            this.btn_pause.Visibility = Visibility.Hidden;
+        }
+
+        private void OnVideoSliderMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            JumpPlayTime(this.slider_video.Value);
         }
     }
 }

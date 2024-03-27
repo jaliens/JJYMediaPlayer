@@ -99,8 +99,14 @@ void Player::readThreadTask()
         //리드된 패킷을 디코드 큐에 넣음.
     
 
-    while (this->isPaused == false)
+    while (1)
     {
+        if (this->isPaused == true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         AVPacket* packet = av_packet_alloc();
         if (av_read_frame(this->formatContext, packet) >= 0)
         {
@@ -123,8 +129,14 @@ void Player::decodeThreadTask()
                 //랜더큐에 넣음
 
     int ret = 0;
-    while (this->isPaused == false)
+    while (1)
     {
+        if (this->isPaused == true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         if (this->decodingQueue.empty() == false)
         {
             AVPacket* packet = this->decodingQueue.front();
@@ -183,8 +195,14 @@ void Player::videoRenderThreadTask()
     this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
 
     int ret = 0;
-    while (this->isPaused == false)
+    while (1)
     {
+        if (this->isPaused == true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
         if (this->videoRenderingQueue.empty() == false)
         {
             AVFrame* frame = this->videoRenderingQueue.front();
@@ -373,6 +391,23 @@ void Player::openFileStream()
     this->isFileStreamOpen = true;
 }
 
+int Player::play()
+{
+    if (this->isPaused == true)
+    {
+        this->isPaused = false;
+        return 0;
+    }
+
+    this->startReadThread();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    this->startDecodeThread();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    this->startRenderThread();
+
+    return 0;
+}
+
 int Player::pause()
 {
     this->isPaused = true;
@@ -388,6 +423,15 @@ int Player::resume()
 int Player::stop()
 {
 
+    return 0;
+}
+
+int Player::JumpPlayTime(double seekPercent)
+{
+    int64_t seekTime_ms = duration_ms * seekPercent / 100;
+    int64_t seekTime_s = seekTime_ms / 1000.0;
+    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTime_s, AVSEEK_FLAG_BACKWARD);
+    
     return 0;
 }
 

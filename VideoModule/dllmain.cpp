@@ -207,7 +207,7 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 
 
 /// <summary>
-/// 재생
+/// 파일 스트림 열기
 /// </summary>
 extern "C" __declspec(dllexport) void OpenFileStream()
 {
@@ -230,11 +230,7 @@ extern "C" __declspec(dllexport) void OpenFileStream()
 /// </summary>
 extern "C" __declspec(dllexport) void Play()
 {
-    player->startReadThread();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    player->startDecodeThread();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    player->startRenderThread();
+    player->play();
 
     return;
 }
@@ -244,7 +240,7 @@ extern "C" __declspec(dllexport) void Play()
 
 
 /// <summary>
-/// 재생
+/// 일시정지
 /// </summary>
 extern "C" __declspec(dllexport) void Pause()
 {
@@ -258,7 +254,7 @@ extern "C" __declspec(dllexport) void Pause()
 
 
 /// <summary>
-/// 재생
+/// 정지
 /// </summary>
 extern "C" __declspec(dllexport) void Stop()
 {
@@ -272,11 +268,11 @@ extern "C" __declspec(dllexport) void Stop()
 
 
 /// <summary>
-/// 재생
+/// 특정위치로 건너뛰기
 /// </summary>
-extern "C" __declspec(dllexport) void Seek()
+extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
 {
-
+    player->JumpPlayTime(targetPercent);
 
     return;
 }

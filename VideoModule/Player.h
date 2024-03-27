@@ -40,9 +40,11 @@ public:
     int startReadThread();
     int startDecodeThread();
     int startRenderThread();
+    int play();
     int pause();
     int resume();
     int stop();
+    int JumpPlayTime(double seekPercent);
 
     void RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback);
     void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback);
