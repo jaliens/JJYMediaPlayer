@@ -1,4 +1,6 @@
 #pragma once
+
+#include <mutex>
 #include "pch.h"
 #include "Player.h"
 
@@ -107,14 +109,18 @@ void Player::readThreadTask()
             continue;
         }
 
-        AVPacket* packet = av_packet_alloc();
-        if (av_read_frame(this->formatContext, packet) >= 0)
         {
-            this->decodingQueue.push(packet);
-        }
-        else
-        {
-            break;
+            std::lock_guard<std::mutex> lock(this->decodingQmtx);
+
+            AVPacket* packet = av_packet_alloc();
+            if (av_read_frame(this->formatContext, packet) >= 0)
+            {
+                this->decodingQueue.push(packet);
+            }
+            else
+            {
+                break;
+            }
         }
     }
 }
@@ -137,11 +143,24 @@ void Player::decodeThreadTask()
             continue;
         }
 
-        if (this->decodingQueue.empty() == false)
-        {
-            AVPacket* packet = this->decodingQueue.front();
-            this->decodingQueue.pop();
 
+        AVPacket* packet = nullptr;
+        bool isDecodingQEmpty = false;
+
+        {
+            std::lock_guard<std::mutex> lock(this->decodingQmtx);
+
+            isDecodingQEmpty = this->decodingQueue.empty();
+            if (isDecodingQEmpty == false)
+            {
+                packet = this->decodingQueue.front();
+                this->decodingQueue.pop();
+            }
+        }
+
+
+        if (isDecodingQEmpty == false)
+        {
             if (packet->stream_index == this->video_stream_idx)
             {
                 ret = avcodec_send_packet(this->video_dec_ctx, packet);
@@ -155,13 +174,13 @@ void Player::decodeThreadTask()
                         // frame available, but there were no errors during decoding
                         if (ret == AVERROR_EOF)
                         {
-                            fprintf(stderr, "EOF\n");
+                            //fprintf(stderr, "EOF\n");
                             ret = 0;
                             break;
                         }
                         else if (ret == AVERROR(EAGAIN))
                         {
-                            fprintf(stderr, "EAGAIN\n");
+                            //fprintf(stderr, "EAGAIN\n");
                             ret = 0;
                             break;
                         }
@@ -170,7 +189,10 @@ void Player::decodeThreadTask()
                         break;
                     }
 
-                    this->videoRenderingQueue.push(frame);
+                    {
+                        std::lock_guard<std::mutex> lock(this->renderingQmtx);
+                        this->videoRenderingQueue.push(frame);
+                    }
                 }
             }
             else if (packet->stream_index == this->audio_stream_idx)
@@ -203,11 +225,22 @@ void Player::videoRenderThreadTask()
             continue;
         }
 
-        if (this->videoRenderingQueue.empty() == false)
-        {
-            AVFrame* frame = this->videoRenderingQueue.front();
-            this->videoRenderingQueue.pop();
+        AVFrame* frame = nullptr;
+        bool isRenderingQEmpty = false;
 
+        {
+            std::lock_guard<std::mutex> lock(this->renderingQmtx);
+            isRenderingQEmpty = this->videoRenderingQueue.empty();
+            if (isRenderingQEmpty == false)
+            {
+                frame = this->videoRenderingQueue.front();
+                this->videoRenderingQueue.pop();
+            }
+        }
+
+
+        if (isRenderingQEmpty == false)
+        {
             //printf("pts : %ld\n", frame->pts);
 
             /*int a = frame->pict_type;
@@ -294,6 +327,10 @@ void Player::videoRenderThreadTask()
                 this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
                 //std::this_thread::sleep_for(std::chrono::milliseconds(33));
             }
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
     }
@@ -430,8 +467,30 @@ int Player::JumpPlayTime(double seekPercent)
 {
     int64_t seekTime_ms = duration_ms * seekPercent / 100;
     int64_t seekTime_s = seekTime_ms / 1000.0;
+    
+    this->isPaused = true;
+
+    //큐 비우기
+    {
+        std::lock_guard<std::mutex> lock1(this->decodingQmtx);
+        std::lock_guard<std::mutex> lock2(this->renderingQmtx);
+        
+        while (this->decodingQueue.empty() == false) 
+        {
+            this->decodingQueue.pop();
+        }
+
+        while (this->videoRenderingQueue.empty() == false) 
+        {
+            this->videoRenderingQueue.pop();
+        }
+    }
+
+    //비디오 스트림 상에서 재생위치 이동
     int result = av_seek_frame(this->formatContext, video_stream_idx, seekTime_s, AVSEEK_FLAG_BACKWARD);
     
+    this->isPaused = false;
+
     return 0;
 }
 

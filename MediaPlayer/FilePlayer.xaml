@@ -24,6 +24,7 @@
             </Grid.ColumnDefinitions>
             <Button
                 Grid.Column="0"
+                Visibility="Collapsed"
                 Content="SDL▶"
                 Click="OnPlayWithSDLButtonClick"/>
             <Button
@@ -46,7 +47,7 @@
                 x:Name="slider_video"
                 Grid.Column="3"
                 VerticalAlignment="Center"
-                MouseUp="OnVideoSliderMouseUp"/>       
+                PreviewMouseUp="OnVideoSliderMouseUp"/>       
         </Grid>
         
     </Grid>

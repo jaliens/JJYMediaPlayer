@@ -138,11 +138,26 @@ namespace MediaPlayer
         private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
         {
             CreatePlayer();
-            RegisterOnImgDecodeCallback(this._imageCallBack);
-            RegisterOnVideoLengthCallback(this._videoLengthCallback);
-            RegisterOnVideoProgressCallback(this._videoProgressCallback);
+
+            if (this._imageCallBack != null)
+            {
+                RegisterOnImgDecodeCallback(this._imageCallBack);
+            }
+            if (this._videoLengthCallback != null)
+            {
+                RegisterOnVideoLengthCallback(this._videoLengthCallback);
+            }
+            if (this._videoProgressCallback != null)
+            {
+                RegisterOnVideoProgressCallback(this._videoProgressCallback);
+            }
+
             OpenFileStream();
+
+            //비관리쪽에서만 쓸 녀석들이기 때문에 가비지컬렉터에 의해 정리될 가능성 제거
             GC.KeepAlive(this._imageCallBack);
+            GC.KeepAlive(this._videoLengthCallback);
+            GC.KeepAlive(this._videoProgressCallback);
         }
 
         private void OnImageCallback(IntPtr data, int size, int width, int height)

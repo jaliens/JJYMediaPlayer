@@ -272,6 +272,7 @@ extern "C" __declspec(dllexport) void Stop()
 /// </summary>
 extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
 {
+
     player->JumpPlayTime(targetPercent);
 
     return;

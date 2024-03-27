@@ -1,7 +1,7 @@
 #pragma once
 
+#include <mutex>
 #include <thread>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,6 +90,9 @@ private:
     std::thread* decodeThread = nullptr;
     std::thread* renderThread = nullptr;
     std::thread* progressCheckingThread = nullptr;
+
+    std::mutex renderingQmtx;
+    std::mutex decodingQmtx;
 
     OnImgDecodeCallbackFunction onImageDecodeCallback = nullptr;
     OnVideoLengthCallbackFunction onVideoLengthCallback = nullptr;
