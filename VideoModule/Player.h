@@ -7,6 +7,7 @@
 #include <string.h>
 #include <queue>
 #include <list>
+#include "Monitor.h"
 
 extern "C" {
 #include <stdio.h>
@@ -93,6 +94,17 @@ private:
 
     std::mutex renderingQmtx;
     std::mutex decodingQmtx;
+
+    std::mutex readingMtx;
+    std::mutex decodingMtx;
+    std::mutex renderingMtx;
+
+    Monitor monitor_readThread;
+    Monitor monitor_decodeThread;
+    Monitor monitor_renderThread;
+    Monitor monitor_forReadingThreadEnd;
+    Monitor monitor_forDecodingThreadEnd;
+    Monitor monitor_forRenderingThreadEnd;
 
     OnImgDecodeCallbackFunction onImageDecodeCallback = nullptr;
     OnVideoLengthCallbackFunction onVideoLengthCallback = nullptr;

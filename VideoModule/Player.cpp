@@ -1,9 +1,5 @@
 #pragma once
 
-#include <mutex>
-#include "pch.h"
-#include "Player.h"
-
 extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +16,13 @@ extern "C" {
 #include <SDL.h>
 }
 
+#include <mutex>
+#include <iostream>
+#include <future>
+#include <chrono>
+#include "pch.h"
+#include "Player.h"
+#include "Monitor.h"
 
 int Player::decode_packet(AVCodecContext* decoderCtx, const AVPacket* pkt)
 {
@@ -71,7 +74,6 @@ int Player::startReadThread()
 {
     this->readThread = new std::thread(&Player::readThreadTask, this);
     this->readThread->detach();
-    //readThread.join();
     return 0;
 }
 
@@ -103,24 +105,29 @@ void Player::readThreadTask()
 
     while (1)
     {
-        if (this->isPaused == true)
+        this->monitor_forReadingThreadEnd.checkRequestAndWait();
+        
+        /*if (this->isPaused == true)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            this->monitor_forReadingThreadEnd.notify();
             continue;
-        }
+        }*/
 
+
+        AVPacket* packet = av_packet_alloc();
+        int ret = av_read_frame(this->formatContext, packet);
+        if (ret >= 0)
         {
             std::lock_guard<std::mutex> lock(this->decodingQmtx);
-
-            AVPacket* packet = av_packet_alloc();
-            if (av_read_frame(this->formatContext, packet) >= 0)
-            {
-                this->decodingQueue.push(packet);
-            }
-            else
-            {
-                break;
-            }
+            this->decodingQueue.push(packet);
+            //printf("디코딩큐에 삽입 dq:%d\n", this->decodingQueue.size());
+        }
+        else
+        {
+            //printf("리드쓰레드 웨이트\n");
+            //this->monitor_readThread.wait();
+            //break;
         }
     }
 }
@@ -137,11 +144,13 @@ void Player::decodeThreadTask()
     int ret = 0;
     while (1)
     {
-        if (this->isPaused == true)
+        this->monitor_forDecodingThreadEnd.checkRequestAndWait();
+
+        /*if (this->isPaused == true)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
-        }
+        }*/
 
 
         AVPacket* packet = nullptr;
@@ -149,7 +158,6 @@ void Player::decodeThreadTask()
 
         {
             std::lock_guard<std::mutex> lock(this->decodingQmtx);
-
             isDecodingQEmpty = this->decodingQueue.empty();
             if (isDecodingQEmpty == false)
             {
@@ -158,8 +166,11 @@ void Player::decodeThreadTask()
             }
         }
 
-
-        if (isDecodingQEmpty == false)
+        if (isDecodingQEmpty == true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        else if (isDecodingQEmpty == false)
         {
             if (packet->stream_index == this->video_stream_idx)
             {
@@ -174,7 +185,7 @@ void Player::decodeThreadTask()
                         // frame available, but there were no errors during decoding
                         if (ret == AVERROR_EOF)
                         {
-                            //fprintf(stderr, "EOF\n");
+                            fprintf(stderr, "EOF\n");
                             ret = 0;
                             break;
                         }
@@ -200,10 +211,6 @@ void Player::decodeThreadTask()
                 
             }
         }
-        else
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
     }
 }
 
@@ -217,19 +224,26 @@ void Player::videoRenderThreadTask()
     this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
 
     int ret = 0;
+
+    int popCount = 0;
+
     while (1)
     {
-        if (this->isPaused == true)
+        this->monitor_forRenderingThreadEnd.checkRequestAndWait();
+        /*if (this->isPaused == true)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            this->monitor_forRenderingThreadEnd.notify();
             continue;
         }
+        */
 
         AVFrame* frame = nullptr;
         bool isRenderingQEmpty = false;
 
         {
             std::lock_guard<std::mutex> lock(this->renderingQmtx);
+            
             isRenderingQEmpty = this->videoRenderingQueue.empty();
             if (isRenderingQEmpty == false)
             {
@@ -238,19 +252,22 @@ void Player::videoRenderThreadTask()
             }
         }
 
-
-        if (isRenderingQEmpty == false)
+        if (isRenderingQEmpty == true)
         {
-            //printf("pts : %ld\n", frame->pts);
-
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        else
+        {
+            
             /*int a = frame->pict_type;
             printf("type : %ld\n", a);*/
 
             //시간 측정
             //현재 시각
-            //pts가 0이면
+            //새로운 시작이면 ( pts가 0이면
                 //현재 시각을 starttime으로 기록
-            //pts가 0이 아니면
+                //현재 pts를 startPts으로 기록
+            //진행 중이었으면
                 //현재 시각과 startime의 차이 계산(시작 후 흐른 시간)
             //pts를 ms 단위로 변환
             int64_t timeSpent = 0;//시작 후 경과 시간
@@ -271,25 +288,28 @@ void Player::videoRenderThreadTask()
             //pts 비교
             //목표 시간 보다 빠른 경우
                 //기다렸다가 진행
-            if (pts_ms > timeSpent)
+            if (pts_ms - this->startPts_ms > timeSpent)
             {
-                int64_t gap_ms = pts_ms - timeSpent;
+                int64_t gap_ms = pts_ms - this->startPts_ms - timeSpent;
                 std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
+                
             }
 
             //적정 시간 보다 느린 경우
                 //몇 개나 패스해야할지 계산(계산 법 : 차이나는 시간 / 타임 베이스)
                 //다음 프레임으로 패스
-            else if (pts_ms < timeSpent)
+            else if (pts_ms - this->startPts_ms < timeSpent)
             {
-                int64_t gap_ms = timeSpent - pts_ms;
+                int64_t gap_ms = timeSpent - (pts_ms - this->startPts_ms);
                 int numToPass = gap_ms / videoTimeBase_ms;
                 if (numToPass > 0)
                 {
+                    //버퍼링 필요함
+                    printf("으아으아\n");
                     continue;
                 }
             }
-
+            
             if (this->onVideoProgressCallback != nullptr)
             {
                 this->progress_ms = pts_ms - this->startPts_ms;
@@ -315,6 +335,7 @@ void Player::videoRenderThreadTask()
                 continue;
             }
 
+
             // 변환 실행
             sws_scale(this->swsCtx,
                 (const uint8_t* const*)frame->data, frame->linesize,
@@ -325,14 +346,8 @@ void Player::videoRenderThreadTask()
             if (this->onImageDecodeCallback != nullptr)
             {
                 this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
-                //std::this_thread::sleep_for(std::chrono::milliseconds(33));
             }
         }
-        else
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
     }
 }
 
@@ -437,9 +452,9 @@ int Player::play()
     }
 
     this->startReadThread();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(200));
     this->startDecodeThread();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(200));
     this->startRenderThread();
 
     return 0;
@@ -466,31 +481,41 @@ int Player::stop()
 int Player::JumpPlayTime(double seekPercent)
 {
     int64_t seekTime_ms = duration_ms * seekPercent / 100;
+    int64_t seekTime_us = duration_ms * 1000;
     int64_t seekTime_s = seekTime_ms / 1000.0;
     
-    this->isPaused = true;
+    this->monitor_forReadingThreadEnd.requestHoldAndWait();
+    this->monitor_forDecodingThreadEnd.requestHoldAndWait();
+    this->monitor_forRenderingThreadEnd.requestHoldAndWait();
 
     //큐 비우기
     {
-        std::lock_guard<std::mutex> lock1(this->decodingQmtx);
-        std::lock_guard<std::mutex> lock2(this->renderingQmtx);
-        
-        while (this->decodingQueue.empty() == false) 
+        std::lock_guard<std::mutex> decodingQLock(this->decodingQmtx);
+        std::lock_guard<std::mutex> renderingQLock(this->renderingQmtx);
+
+        while (this->decodingQueue.empty() == false)
         {
             this->decodingQueue.pop();
         }
 
-        while (this->videoRenderingQueue.empty() == false) 
+        while (this->videoRenderingQueue.empty() == false)
         {
             this->videoRenderingQueue.pop();
         }
     }
 
-    //비디오 스트림 상에서 재생위치 이동
-    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTime_s, AVSEEK_FLAG_BACKWARD);
-    
-    this->isPaused = false;
+    printf("큐 정리 decQ:%ld   rndrQ:%ld \n", (long)this->decodingQueue.size(), (long)this->videoRenderingQueue.size());
 
+
+    //비디오 스트림 상에서 재생위치 이동
+    printf("seek : %ld", seekTime_s);
+    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTime_us, AVSEEK_FLAG_BACKWARD);
+
+    this->isRenderStarted = false;
+
+    this->monitor_forReadingThreadEnd.notify();
+    this->monitor_forDecodingThreadEnd.notify();
+    this->monitor_forRenderingThreadEnd.notify();
     return 0;
 }
 

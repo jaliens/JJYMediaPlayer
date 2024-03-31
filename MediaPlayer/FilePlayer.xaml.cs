@@ -239,7 +239,12 @@ namespace MediaPlayer
 
         private void OnVideoSliderMouseUp(object sender, MouseButtonEventArgs e)
         {
-            JumpPlayTime(this.slider_video.Value);
+            double value = this.slider_video.Value;
+            Task.Run(()=>
+            {
+                JumpPlayTime(value);
+            });
+            
         }
     }
 }
