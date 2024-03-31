@@ -312,7 +312,7 @@ void Player::videoRenderThreadTask()
             
             if (this->onVideoProgressCallback != nullptr)
             {
-                this->progress_ms = pts_ms - this->startPts_ms;
+                this->progress_ms = pts_ms;
             }
 
             AVFrame* afterConvertFrame;
@@ -480,9 +480,14 @@ int Player::stop()
 
 int Player::JumpPlayTime(double seekPercent)
 {
+    seekPercent = 50.0;
+
     int64_t seekTime_ms = duration_ms * seekPercent / 100;
-    int64_t seekTime_us = duration_ms * 1000;
     int64_t seekTime_s = seekTime_ms / 1000.0;
+
+    double timebase = av_q2d(this->videoTimeBase);
+    int64_t valuePerOneSec = 1 / timebase;
+    int64_t seekTimeStamp = valuePerOneSec* seekTime_s;
     
     this->monitor_forReadingThreadEnd.requestHoldAndWait();
     this->monitor_forDecodingThreadEnd.requestHoldAndWait();
@@ -506,10 +511,10 @@ int Player::JumpPlayTime(double seekPercent)
 
     printf("큐 정리 decQ:%ld   rndrQ:%ld \n", (long)this->decodingQueue.size(), (long)this->videoRenderingQueue.size());
 
-
+    int64_t timestamp = 1 * AV_TIME_BASE;
     //비디오 스트림 상에서 재생위치 이동
-    printf("seek : %ld", seekTime_s);
-    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTime_us, AVSEEK_FLAG_BACKWARD);
+    printf("seek : %ld", seekTime_ms);
+    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
 
     this->isRenderStarted = false;
 
