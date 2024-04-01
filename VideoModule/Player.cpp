@@ -480,8 +480,6 @@ int Player::stop()
 
 int Player::JumpPlayTime(double seekPercent)
 {
-    seekPercent = 50.0;
-
     int64_t seekTime_ms = duration_ms * seekPercent / 100;
     int64_t seekTime_s = seekTime_ms / 1000.0;
 

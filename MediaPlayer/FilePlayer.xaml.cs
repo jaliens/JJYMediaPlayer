@@ -239,12 +239,21 @@ namespace MediaPlayer
 
         private void OnVideoSliderMouseUp(object sender, MouseButtonEventArgs e)
         {
-            double value = this.slider_video.Value;
-            Task.Run(()=>
+            Slider? slider = sender as Slider;
+            if (slider != null)
             {
-                JumpPlayTime(value);
-            });
-            
+                // 클릭한 위치를 슬라이더의 값으로 변환
+                var point = e.GetPosition(slider);
+                //double value = (point.X / slider.ActualWidth) * (slider.Maximum - slider.Minimum) + slider.Minimum;
+
+                // 슬라이더의 값 설정
+                double value = point.X / slider.ActualWidth * 100;
+
+                Task.Run(() =>
+                {
+                    JumpPlayTime(value);
+                });
+            }
         }
     }
 }
