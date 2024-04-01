@@ -94,14 +94,8 @@ private:
 
     std::mutex renderingQmtx;
     std::mutex decodingQmtx;
+    std::mutex pauseMtx;
 
-    std::mutex readingMtx;
-    std::mutex decodingMtx;
-    std::mutex renderingMtx;
-
-    Monitor monitor_readThread;
-    Monitor monitor_decodeThread;
-    Monitor monitor_renderThread;
     Monitor monitor_forReadingThreadEnd;
     Monitor monitor_forDecodingThreadEnd;
     Monitor monitor_forRenderingThreadEnd;

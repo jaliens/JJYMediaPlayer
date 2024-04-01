@@ -230,13 +230,18 @@ void Player::videoRenderThreadTask()
     while (1)
     {
         this->monitor_forRenderingThreadEnd.checkRequestAndWait();
-        /*if (this->isPaused == true)
+
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            this->monitor_forRenderingThreadEnd.notify();
+            std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
+            bool isPaused = this->isPaused;
+        }
+
+        if (isPaused == true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds((int64_t)this->videoTimeBase_ms));
             continue;
         }
-        */
+        
 
         AVFrame* frame = nullptr;
         bool isRenderingQEmpty = false;
@@ -462,12 +467,14 @@ int Player::play()
 
 int Player::pause()
 {
+    std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
     this->isPaused = true;
     return 0;
 }
 
 int Player::resume()
 {
+    std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
     this->isPaused = false;
     return 0;
 }
