@@ -28,7 +28,7 @@ void Monitor::notify() {
 }
 
 
-
+//대기를 요청하고 대상이 대기할 때 까지 기다림
 void Monitor::requestHoldAndWait()
 {
 	std::unique_lock<std::mutex> lock(mtx);//뮤텍스 획득
@@ -38,7 +38,7 @@ void Monitor::requestHoldAndWait()
 }
 
 
-
+//호출 시점에 대기 요청이 있으면 요청자의 대기를 풀어주고 호출자는 대기
 void Monitor::checkRequestAndWait()
 {
 	std::unique_lock<std::mutex> lock(mtx);//뮤텍스 획득

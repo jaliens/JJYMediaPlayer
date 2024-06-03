@@ -8,6 +8,8 @@
 #include <queue>
 #include <list>
 #include "Monitor.h"
+#include "FixedQueue.h"
+#include "FixedMemQueue.h"
 
 extern "C" {
 #include <stdio.h>
@@ -61,6 +63,7 @@ private:
     const AVCodec* videoDecoder = nullptr;
     const AVCodec* audioDecoder = nullptr;
     AVStream* videoStream = nullptr;
+    AVBufferPool* avBufferPool = nullptr;
     AVPacket* packet = nullptr;
     enum AVPixelFormat pix_fmt;
     AVRational videoTimeBase;
@@ -86,6 +89,12 @@ private:
 
     std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;
     std::queue<AVFrame*, std::list<AVFrame*>> videoRenderingQueue;
+
+    FixedMemQueue* fixedMemRenderingQueue = nullptr;
+    int linesize[AV_NUM_DATA_POINTERS] = {0};
+
+    FixedQueue<AVPacket, 200> fixedDecodingQueue;
+    FixedQueue<AVFrame, 200> fixedVideoRenderingQueue;
 
     std::thread* readThread = nullptr;
     std::thread* decodeThread = nullptr;
