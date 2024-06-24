@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -32,6 +33,10 @@ namespace MediaPlayer
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void OnVideoProgressCallbackFunction(double progress);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnBufferProgressCallbackFunction(double progress);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnBufferStartPosCallbackFunction(double progress);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void OnStartCallbackFunction();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void OnPauseCallbackFunction();
@@ -41,6 +46,8 @@ namespace MediaPlayer
         ImageCallback? _imageCallBack = null;
         OnVideoLengthCallbackFunction? _videoLengthCallback = null;
         OnVideoProgressCallbackFunction? _videoProgressCallback = null;
+        OnBufferProgressCallbackFunction? _bufferProgressCallback = null;
+        OnBufferStartPosCallbackFunction? _bufferStartPosCallback = null;
         OnStartCallbackFunction? _startCallback = null;
         OnPauseCallbackFunction? _pauseCallback = null;
         OnResumeCallbackFunction? _resumeCallback = null;
@@ -58,6 +65,9 @@ namespace MediaPlayer
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnBufferProgressCallback(OnBufferProgressCallbackFunction callback);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RegisterOnStartCallback(OnStartCallbackFunction callback);
@@ -131,6 +141,8 @@ namespace MediaPlayer
             this._imageCallBack = this.OnImageCallback;
             this._videoLengthCallback = this.OnVideoLengthCallback;
             this._videoProgressCallback = this.OnVideoProgressCallback;
+            this._bufferProgressCallback = this.OnBufferProgressCallback;
+            this._bufferStartPosCallback = this.OnBufferStartPosCallback;
         }
 
         
@@ -151,6 +163,10 @@ namespace MediaPlayer
             {
                 RegisterOnVideoProgressCallback(this._videoProgressCallback);
             }
+            if (this._bufferProgressCallback != null)
+            {
+                RegisterOnBufferProgressCallback(this._bufferProgressCallback);
+            }
 
             OpenFileStream();
 
@@ -158,6 +174,7 @@ namespace MediaPlayer
             GC.KeepAlive(this._imageCallBack);
             GC.KeepAlive(this._videoLengthCallback);
             GC.KeepAlive(this._videoProgressCallback);
+            GC.KeepAlive(this._bufferProgressCallback);
         }
 
         private void OnImageCallback(IntPtr data, int size, int width, int height)
@@ -176,7 +193,10 @@ namespace MediaPlayer
 
         private void OnVideoLengthCallback(double length)
         {
+            length = 100;
             this.slider_video.Maximum = length;
+            this.slider_buffer.Maximum = length;
+            Console.WriteLine("길이:" + length);
         }
 
         private void OnVideoProgressCallback(double progress)
@@ -184,6 +204,25 @@ namespace MediaPlayer
             Application.Current.Dispatcher.Invoke(() =>
             {
                 this.slider_video.Value = progress;
+            });
+            
+        }
+
+        private void OnBufferProgressCallback(double progress)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                this.slider_buffer.Value = progress;
+                Console.WriteLine("버퍼:"+progress);
+            });
+            
+        }
+
+        private void OnBufferStartPosCallback(double progress)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                //this.slider_buffer.Value = progress;
             });
             
         }

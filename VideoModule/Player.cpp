@@ -95,34 +95,268 @@ int Player::startRenderThread()
     return 0;
 }
 
+int Player::startDecodeAndRenderThread()
+{
+    this->decodeAndRenderThread = new std::thread(&Player::videoDecodeAndRenderThreadTask, this);
+    this->decodeAndRenderThread->detach();
+    return 0;
+}
 
+
+bool playStarted = false;
+int64_t playStartedDts = 0;
+int64_t lastestPacketDts = 0;
+
+/// <summary>
+/// 패킷을 읽어서 패킷Q에 삽입한다<br/>
+/// 우선 임시버퍼에 GOP 단위만큼만 읽어들이고 GOP단위 만큼 DTS 순으로 정렬한 후 패킷 버퍼에 삽입한다.<br/>
+/// </summary>
 void Player::readThreadTask()
 {
-    //루프
-        //컨텍스트로 부터 패킷 리드
-        //리드된 패킷을 디코드 큐에 넣음.
-    
+    std::vector<AVPacket*> tempBuffer;//온전한 GOP 단위의 패킷 묶음을 받는 목적의 임시 버퍼(I프레임 ~ 다음 I프레임 직전)
+    bool isFirstKeyFrameFound = false;
 
-    while (1)
-    {
-        this->monitor_forReadingThreadEnd.checkRequestAndWait();
-
+    while (this->isReading == true) {
         AVPacket* packet = av_packet_alloc();
-        int ret = av_read_frame(this->formatContext, packet);
 
-        if (ret >= 0)
-        {
-            std::lock_guard<std::mutex> lock(this->decodingQmtx);
-            this->decodingQueue.push(packet);
+        //스트림에서 패킷 읽는데 성공한 경우
+        if (av_read_frame(this->formatContext, packet) >= 0) {
 
+            //리드 시작 타이밍인 경우
+            if (playStarted == false)
+            {
+                this->playStartedDts = packet->dts;//시작 DTS 기록
+                this->playStarted = true;
 
+                //프로그래스바에서 몇%에 해당하는 시간인지 계산
+                double progressPercent = (double)packet->dts * videoTimeBase_ms / this->duration_ms * 100.0;
+            }
+            else
+            {
+                this->lastestPacketDts = packet->dts;//마지막으로 읽은 패킷의 DTS 갱신
+
+                //프로그래스바에서 몇%에 해당하는 시간인지 계산
+                double progressPercent = (double)packet->dts * videoTimeBase_ms / this->duration_ms * 100.0;
+
+                if (this->onBufferProgressCallback != nullptr)
+                {
+                    //버퍼 프로그래스바 갱신
+                    this->onBufferProgressCallback(progressPercent);
+                }
+            }
+
+            //첫 키프레임 발견 전 일반 프레임
+            if (isFirstKeyFrameFound == false && 
+                packet->flags != AV_PKT_FLAG_KEY)
+            {
+                //키프레임 없는 일반 프레임은 의미가 없으므로 버림
+            }
+            //첫 키프레임 발견
+            else if (isFirstKeyFrameFound == false && 
+                packet->flags == AV_PKT_FLAG_KEY)
+            {
+                tempBuffer.push_back(packet);
+                isFirstKeyFrameFound = true;
+            }
+            //두 번째 키프레임 발견 전 일반 프레임
+            else if (isFirstKeyFrameFound == true &&
+                packet->flags != AV_PKT_FLAG_KEY)
+            {
+                tempBuffer.push_back(packet);
+            }
+            //두 번째 키프레임 발견
+            else if (isFirstKeyFrameFound == true && 
+                packet->flags == AV_PKT_FLAG_KEY)
+            {
+                //GOP 정렬(첫I부터 두번째I전까지)
+                std::sort(tempBuffer.begin(), tempBuffer.end(), [](AVPacket* a, AVPacket* b) {
+                    return a->dts < b->dts;
+                    });
+
+                //정렬된 패킷들을 진짜 패킷 버퍼에 삽입
+                for (AVPacket* p : tempBuffer)
+                {
+                    std::unique_lock<std::mutex> lock(bufferMutex);
+                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE; });
+                    this->packetBuffer.push(p);
+                    printf("패킷(DTS:%d) 푸시 성공, 버퍼 크기: %d\n", (int)p->dts, (int)this->packetBuffer.size());
+                }
+                tempBuffer.clear();
+
+                //두번째 키프레임을 첫번째 키프레임으로 취급
+                tempBuffer.push_back(packet);
+            }
+
+            if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                this->bufferCondVar.notify_all();
+                printf("디코딩 시작 가능 알림");
+            }
         }
-        else
+        //에러 또는 파일이 끝난 경우
+        else 
         {
+            printf("패킷 읽기 끝 (에러 또는 파일 끝)\n");
+
+            //임시버퍼에 GOP가 남아있는 경우 처리
+            if (isFirstKeyFrameFound == true &&
+                tempBuffer.empty() == false)
+            {
+                //GOP 정렬(첫I부터 두번째I전까지)
+                std::sort(tempBuffer.begin(), tempBuffer.end(), [](AVPacket* a, AVPacket* b) {
+                    return a->dts < b->dts;
+                    });
+
+                //정렬된 패킷들을 진짜 패킷 버퍼에 삽입
+                for (AVPacket* p : tempBuffer)
+                {
+                    std::unique_lock<std::mutex> lock(bufferMutex);
+                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE; });
+                    this->packetBuffer.push(p);
+                    printf("패킷(DTS:%d) 푸시 성공(마지막 GOP), 버퍼 크기: %d\n", (int)p->dts, (int)this->packetBuffer.size());
+                }
+                tempBuffer.clear();
+
+                if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                    this->bufferCondVar.notify_all();
+                    printf("디코딩 시작 가능 알림(패킷 리드 끝)");
+                }
+            }
+            isFirstKeyFrameFound = false;
+
+            av_packet_free(&packet);
+            this->isReading = false;
+            this->bufferCondVar.notify_all();
+            break;
         }
     }
 
+    avformat_close_input(&this->formatContext);
 }
+
+
+
+
+void Player::videoDecodeAndRenderThreadTask()
+{
+    //버퍼가 CAN_POP_PACKET_BUFFER_SIZE이상 차면 시작 가능
+    //한 번 시작하면 버퍼가 빌 때 까지 계속 디코딩
+
+    while (this->isReading || 
+            !this->packetBuffer.empty()) {
+        std::unique_lock<std::mutex> lock(this->bufferMutex);
+        this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE; });
+
+        while (!this->packetBuffer.empty()) 
+        {
+            AVPacket* packet = this->packetBuffer.front();
+            this->packetBuffer.pop();
+
+            printf("               패킷 팝 dts:%d    packetBuffer cnt:%d\n", (int)packet->dts, (int)this->packetBuffer.size());
+
+            if (packet->stream_index != this->video_stream_idx)
+            {
+                continue;
+            }
+
+            printf("               프레임 디코드 함수 호출 DTS:%d\n", (int)packet->dts);
+            if (avcodec_send_packet(video_dec_ctx, packet) >= 0)
+            {
+                while (true)
+                {
+                    AVFrame* frame = av_frame_alloc();
+                    int ret = avcodec_receive_frame(video_dec_ctx, frame);
+                    printf("               디코딩된 프레임 처리 PTS:%d\n", (int)frame->pts);
+                    if (ret < 0)
+                    {
+                        av_frame_free(&frame);
+
+                        if (ret == AVERROR_EOF)
+                        {
+                            fprintf(stderr, "               디코드 결과 EOF\n");
+                            ret = 0;
+                            break;
+                        }
+                        else if (ret == AVERROR(EAGAIN))
+                        {
+                            fprintf(stderr, "               디코드 결과 EAGAIN\n");
+                            ret = 0;
+                            break;
+                        }
+
+                        fprintf(stderr, "               디코드된 프레임 가져오다가 실패\n");
+                        break;
+                    }
+                    else
+                    {
+                        fprintf(stderr, "               디코드된 프레임 처리!!!!!!!!!!!!!!\n");
+
+                        // TODO:여기서 프레임 처리 (e.g., display, save, etc.)
+                        
+                        AVFrame* afterConvertFrame;
+                        afterConvertFrame = av_frame_alloc();
+                        if (!afterConvertFrame) {
+                            fprintf(stderr, "새 프레임 할당 실패\n");
+                            continue;
+                        }
+                        //변환 프레임의 버퍼 할당
+                        if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
+                            fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
+                            continue;
+                        }
+
+                        // 변환 실행
+                        sws_scale(this->swsCtx,
+                            (const uint8_t* const*)frame->data, frame->linesize,
+                            0, frame->height,
+                            afterConvertFrame->data, afterConvertFrame->linesize);
+
+                        //콜백 메서드 호출
+                        if (this->onImageDecodeCallback != nullptr)
+                        {
+                            this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                        }
+
+
+
+
+
+
+
+
+
+
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(33)); // Simulate processing time
+                        av_frame_free(&frame);
+                    }
+
+                }
+            }
+
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+        }
+
+        bufferCondVar.notify_all();
+    }
+
+    avcodec_free_context(&this->video_dec_ctx);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void Player::decodeThreadTask()
 {
@@ -809,6 +1043,15 @@ void Player::openFileStream()
     this->videoTimeBase = this->videoStream->time_base;
     this->videoTimeBase_ms = av_q2d(this->videoTimeBase) * 1000;//s단위 -> ms단위로 변환
     this->duration_ms = this->videoStream->duration * av_q2d(this->videoTimeBase) * 1000;
+    if (this->videoStream->start_time == AV_NOPTS_VALUE)//스트림의 시작 시각이 설정되지 않은 경우
+    {
+        this->start_time = AV_NOPTS_VALUE;
+    }
+    else
+    {
+        this->start_time = this->videoStream->start_time;//스트림의 시작 시각 기록(time_base 단위 즉, PTS와 DTS의 단위)
+    }
+    this->fps = av_q2d(this->videoStream->avg_frame_rate);
 
     if (this->onVideoLengthCallback != nullptr)
     {
@@ -869,10 +1112,9 @@ int Player::play()
     }
 
     this->startReadThread();
-    //std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    this->startDecodeThread();
-    //std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    this->startRenderThread();
+    /*this->startDecodeThread();
+    this->startRenderThread();*/
+    this->startDecodeAndRenderThread();
 
     return 0;
 }
@@ -949,6 +1191,16 @@ void Player::RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callbac
 void Player::RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback)
 {
     this->onVideoProgressCallback = callback;
+}
+
+void Player::RegisterOnBufferProgressCallback(OnBufferProgressCallbackFunction callback)
+{
+    this->onBufferProgressCallback = callback;
+}
+
+void Player::RegisterOnBufferStartPosCallback(OnBufferStartPosCallbackFunction callback)
+{
+    this->onBufferStartPosCallback = callback;
 }
 
 void Player::RegisterOnImageDecodeCallback(OnImgDecodeCallbackFunction callback)

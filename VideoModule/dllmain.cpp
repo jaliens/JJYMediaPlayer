@@ -81,6 +81,16 @@ extern "C" __declspec(dllexport) void RegisterOnVideoProgressCallback(OnVideoPro
     player->RegisterOnVideoProgressCallback(callback);
 }
 
+extern "C" __declspec(dllexport) void RegisterOnBufferProgressCallback(OnBufferProgressCallbackFunction callback)
+{
+    player->RegisterOnBufferProgressCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnBufferStartPosCallback(OnBufferStartPosCallbackFunction callback)
+{
+    player->RegisterOnBufferStartPosCallback(callback);
+}
+
 extern "C" __declspec(dllexport) void RegisterOnStartCallback(OnStartCallbackFunction callback)
 {
     player->RegisterOnStartCallback(callback);
