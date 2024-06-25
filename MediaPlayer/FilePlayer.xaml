@@ -26,22 +26,26 @@
             <Button
                 Grid.Column="0"
                 Visibility="Collapsed"
+                BorderThickness="0"
                 Content="SDL▶"
                 Click="OnPlayWithSDLButtonClick"/>
             <Button
                 x:Name="btn_stop"
                 Grid.Column="1"
+                BorderThickness="0"
                 Content="■"
                 Click="OnPlayWithSDLButtonClick"/>
             <Button
                 x:Name="btn_pause"
                 Grid.Column="2"
+                BorderThickness="0"
                 Visibility="Hidden"
                 Content="∥"
                 Click="OnPauseButtonClick"/>
             <Button
                 x:Name="btn_play"
                 Grid.Column="2"
+                BorderThickness="0"
                 Content="▶"
                 Click="OnPlayButtonClick"/>
             <Slider 

@@ -24,7 +24,7 @@ namespace MediaPlayer
         }
 
 
-        private bool _isShowFilePlayer = false;
+        private bool _isShowFilePlayer = true;
         public bool IsShowFilePlayer
         {
             get

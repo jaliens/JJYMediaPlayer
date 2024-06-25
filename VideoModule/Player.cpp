@@ -315,15 +315,8 @@ void Player::videoDecodeAndRenderThreadTask()
                         //프로그래스바 갱신
                         this->progress_percent = (double)frame->pts * videoTimeBase_ms / this->duration_ms * 100.0;
 
-
-
-
-
-
-
-
-
-                        std::this_thread::sleep_for(std::chrono::milliseconds(33)); // Simulate processing time
+                        //다음 프레임 재생 지연
+                        std::this_thread::sleep_for(std::chrono::milliseconds((long long)this->videoTimeBase_ms));
                         av_frame_free(&frame);
                     }
 

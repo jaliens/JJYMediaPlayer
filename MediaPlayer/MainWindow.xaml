@@ -9,8 +9,9 @@
         xmlns:webcammodule="clr-namespace:WebCamModule;assembly=WebCamModule"
         mc:Ignorable="d"
         Style="{StaticResource winStyle}"
-        SizeToContent="WidthAndHeight"
         DataContext="{Binding MainWindowViewModel, Source={StaticResource ViewModelLocator}}"
+        Width="300"
+        Height="300"
         Title="Player" >
     <Window.Resources>
         <common_converter:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -20,7 +21,7 @@
             <RowDefinition Height="10"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="10"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         
         <!--상위 메뉴-->
@@ -38,10 +39,12 @@
         
         <!--플레이어-->
         <local:WebCamPlayer Grid.Row="3" 
-                            Height="300" Width="600"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
                             Visibility="{Binding IsShowWebcamPlayer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         <local:FilePlayer Grid.Row="3" 
-                          Height="300" Width="600"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
                           Visibility="{Binding IsShowFilePlayer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </Grid>
 </Window>
