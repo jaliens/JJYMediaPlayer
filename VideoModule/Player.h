@@ -43,7 +43,6 @@ public:
     int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
     void openFileStream();
     int startReadThread();
-    int startDecodeThread();
     int startRenderThread();
     int startDecodeAndRenderThread();
     int play();
@@ -79,6 +78,7 @@ private:
     int64_t duration_ms = 0;
     int64_t start_time = 0;//스트림의 시작 시각(time_base 단위 즉, PTS와 DTS의 단위)
     int64_t progress_ms = 0;
+    int64_t progress_percent = 0;
     int64_t startTime_ms = 0;
     int64_t endTime_ms = 0;
 
@@ -145,7 +145,6 @@ private:
 
 
     void readThreadTask();
-    void decodeThreadTask();
     void videoRenderThreadTask();
     void videoDecodeAndRenderThreadTask();
     void progressCheckingThreadTask();

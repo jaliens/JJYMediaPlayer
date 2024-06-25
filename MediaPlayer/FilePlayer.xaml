@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:MediaPlayer"
+             xmlns:customControl="clr-namespace:Common.CustomControl;assembly=Common"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
@@ -45,13 +46,23 @@
                 Click="OnPlayButtonClick"/>
             <Slider 
                 x:Name="slider_video"
+                Visibility="Collapsed"
                 Grid.Column="3"
                 VerticalAlignment="Center"
                 PreviewMouseUp="OnVideoSliderMouseUp"/>
-            <Slider 
-                x:Name="slider_buffer"
+            <customControl:MediaProgressBar 
+                x:Name="mediaProgressBar"
                 Grid.Column="3"
-                VerticalAlignment="Bottom"/>
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Margin="20 0 20 0"
+                Height="10"
+                Background="#333333"
+                BufferBrush="#777777"
+                ThumbRadius="10"
+                ThumbBrush="DarkOrange"
+                Minimum="0"
+                Maximum="100"/>
         </Grid>
         
     </Grid>

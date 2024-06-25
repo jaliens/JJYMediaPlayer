@@ -195,15 +195,19 @@ namespace MediaPlayer
         {
             length = 100;
             this.slider_video.Maximum = length;
-            this.slider_buffer.Maximum = length;
+            this.mediaProgressBar.Minimum = 0;
+            this.mediaProgressBar.Maximum = length;
             Console.WriteLine("길이:" + length);
         }
 
         private void OnVideoProgressCallback(double progress)
         {
+            Console.WriteLine("영상 프로그래스:" + progress);
             Application.Current.Dispatcher.Invoke(() =>
             {
                 this.slider_video.Value = progress;
+                this.mediaProgressBar.BufferStartValue = progress;
+                this.mediaProgressBar.Value = progress;
             });
             
         }
@@ -212,7 +216,7 @@ namespace MediaPlayer
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                this.slider_buffer.Value = progress;
+                this.mediaProgressBar.BufferEndValue = progress;
                 Console.WriteLine("버퍼:"+progress);
             });
             
