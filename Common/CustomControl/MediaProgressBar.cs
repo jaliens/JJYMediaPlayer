@@ -7,11 +7,19 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace Common.CustomControl
 {
     public class MediaProgressBar : RangeBase
     {
+        static MediaProgressBar()
+        {
+            //RangeBase의 기본 스타일이 아닌 MediaProgressBar의 스타일을 사용하기 위해 호출
+            DefaultStyleKeyProperty.OverrideMetadata(typeof(MediaProgressBar), new FrameworkPropertyMetadata(typeof(MediaProgressBar)));
+        }
+
+
         public static readonly DependencyProperty BufferStartValueProperty =
             DependencyProperty.Register(
                 "BufferStartValue",
@@ -65,13 +73,47 @@ namespace Common.CustomControl
                 "ThumbRadius",
                 typeof(double),
                 typeof(MediaProgressBar),
-                new FrameworkPropertyMetadata(4d, FrameworkPropertyMetadataOptions.AffectsRender));
+                new FrameworkPropertyMetadata(5d, FrameworkPropertyMetadataOptions.AffectsRender));
         public double ThumbRadius
         {
             get { return (double)GetValue(ThumbRadiusProperty); }
             set { SetValue(ThumbRadiusProperty, value); }
         }
 
+        public static readonly DependencyProperty BarThicknessProperty =
+            DependencyProperty.Register(
+                "BarThickness",
+                typeof(double),
+                typeof(MediaProgressBar),
+                new FrameworkPropertyMetadata(5d, FrameworkPropertyMetadataOptions.AffectsRender));
+        public double BarThickness
+        {
+            get { return (double)GetValue(BarThicknessProperty); }
+            set { SetValue(BarThicknessProperty, value); }
+        }
+
+        private Ellipse? _thumb = null;
+        private Canvas? _canvas = null;
+
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            this._thumb = this.GetTemplateChild("thumbEllipse") as Ellipse;
+            this._canvas = this.GetTemplateChild("canvas") as Canvas;
+
+            if (this._thumb != null)
+            {
+                this._thumb.Fill = this.ThumbBrush;
+                this._thumb.Width = this.ThumbRadius*2;
+                this._thumb.Height = this.ThumbRadius*2;
+            }
+
+            if (this._canvas != null)
+            {
+                this._canvas.PreviewMouseDown += this.On_canvas_MouseDown;
+            }
+        }
 
         protected override Size MeasureOverride(Size constraint)
         {
@@ -88,43 +130,98 @@ namespace Common.CustomControl
             base.OnRender(drawingContext);
 
             double progressBarMin = this.Minimum;
-            double progressBarMax = this.Maximum;
+            double progressBarMax = Math.Max(this.Maximum, this.Minimum);
             double bufferStart = this.BufferStartValue;
             double bufferEnd = this.BufferEndValue;
             double value = this.Value;
+            double barY = this.RenderSize.Height / 2d - this.BarThickness / 2d;
 
-            //프로그래스바 배경 그리기
+            //배경 막대 그리기
             Rect barBackgroundRect = new Rect()
             {
                 X = 0,
-                Y = 0,
-                Width = RenderSize.Width,
-                Height = RenderSize.Height,
+                Y = barY,
+                Width = this.RenderSize.Width,
+                Height = this.BarThickness,
             };
             drawingContext.DrawRectangle(this.Background, null, barBackgroundRect);
 
-            //버퍼 그리기
-            double bufferBarWidth = (bufferEnd - bufferStart) / (progressBarMax - progressBarMin) * this.RenderSize.Width;
-            double bufferStartX = bufferStart / (progressBarMax - progressBarMin) * this.RenderSize.Width;
-            Rect bufferRect = new Rect()
+            //버퍼 상태 막대 그리기
+            if (bufferEnd > bufferStart)
             {
-                X = bufferStartX,
-                Y = 0,
-                Width = bufferBarWidth,
-                Height = RenderSize.Height,
-            };
-            drawingContext.DrawRectangle(this.BufferBrush, null, bufferRect);
+                double bufferBarWidth = (bufferEnd - bufferStart) / (progressBarMax - progressBarMin) * this.RenderSize.Width;
+                double bufferStartX = bufferStart / (progressBarMax - progressBarMin) * this.RenderSize.Width;
+                Rect bufferRect = new Rect()
+                {
+                    X = bufferStartX,
+                    Y = barY,
+                    Width = bufferBarWidth,
+                    Height = this.BarThickness,
+                };
+                drawingContext.DrawRectangle(this.BufferBrush, null, bufferRect);
+            }
 
-            //현재 값 표시기 그리기
-            double centerX = (value / (progressBarMax - progressBarMin)) * this.RenderSize.Width;
-            double centerY = this.RenderSize.Height / 2d;
-            double thumbRadius = this.ThumbRadius;
-            Point center = new Point()
+            //현재 값 표시기 위치 결정
+            if (progressBarMax > progressBarMin &&
+                value <= progressBarMax &&
+                value >= progressBarMin)
             {
-                X = centerX,
-                Y = centerY,
-            };
-            drawingContext.DrawEllipse(this.ThumbBrush, null, center, thumbRadius, thumbRadius);
+                double centerX = (value / (progressBarMax - progressBarMin)) * this.RenderSize.Width;
+                double centerY = this.RenderSize.Height / 2d;
+                double thumbX = centerX - this.ThumbRadius;
+                double thumbY = centerY - this.ThumbRadius;
+                this._thumb?.SetValue(Canvas.LeftProperty, thumbX);
+                this._thumb?.SetValue(Canvas.TopProperty, thumbY);
+            }
+            else
+            {
+                this._thumb?.SetValue(Canvas.LeftProperty, - this.ThumbRadius);
+                this._thumb?.SetValue(Canvas.TopProperty, - this.ThumbRadius);
+            }
+
+            if (this._thumb != null)
+            {
+                this._thumb.Fill = this.ThumbBrush;
+                this._thumb.Width = this.ThumbRadius * 2;
+                this._thumb.Height = this.ThumbRadius * 2;
+            }
+        }
+
+        private void On_canvas_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (this._canvas == null)
+            {
+                return;
+            }
+
+            var point = e.GetPosition(this._canvas);
+            double pointX = point.X;
+            double progressBarMin = this.Minimum;
+            double progressBarMax = Math.Max(this.Maximum, this.Minimum);
+            double barY = this.RenderSize.Height / 2d - this.BarThickness / 2d;
+
+            //현재 값 표시기 위치 결정
+            if (progressBarMax > progressBarMin)
+            {
+                double centerX = pointX;
+                double centerY = this.RenderSize.Height / 2d;
+                double thumbX = centerX - this.ThumbRadius;
+                double thumbY = centerY - this.ThumbRadius;
+                this._thumb?.SetValue(Canvas.LeftProperty, thumbX);
+                this._thumb?.SetValue(Canvas.TopProperty, thumbY);
+            }
+            else
+            {
+                this._thumb?.SetValue(Canvas.LeftProperty, -this.ThumbRadius);
+                this._thumb?.SetValue(Canvas.TopProperty, -this.ThumbRadius);
+            }
+
+            if (this._thumb != null)
+            {
+                this._thumb.Fill = this.ThumbBrush;
+                this._thumb.Width = this.ThumbRadius * 2;
+                this._thumb.Height = this.ThumbRadius * 2;
+            }
         }
     }
 }

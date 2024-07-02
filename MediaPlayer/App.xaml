@@ -2,14 +2,15 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:MediaPlayer"
+             xmlns:customControl="clr-namespace:Common.CustomControl;assembly=Common"
              xmlns:mvvm="clr-namespace:MediaPlayer.Mvvm">
     <Application.Resources>
         <ResourceDictionary>
+            <mvvm:ViewModelLocator x:Key="ViewModelLocator"/>
+
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/Common;component/Theme/Theme1.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            
-            <mvvm:ViewModelLocator x:Key="ViewModelLocator"/>
         </ResourceDictionary>
         
     </Application.Resources>

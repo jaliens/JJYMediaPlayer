@@ -6,10 +6,11 @@
              xmlns:local="clr-namespace:MediaPlayer"
              xmlns:customControl="clr-namespace:Common.CustomControl;assembly=Common"
              mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
+             d:DesignHeight="450" d:DesignWidth="800" >
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition />
+            <RowDefinition Height="50"/>
             <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
         <Image 
@@ -68,6 +69,12 @@
                 Minimum="0"
                 Maximum="100"/>
         </Grid>
-        
+        <Grid
+            Grid.Row="2">
+            <customControl:Test
+                Maximum="100"
+                Minimum="0"
+                Value="50"/>
+        </Grid>
     </Grid>
 </UserControl>
