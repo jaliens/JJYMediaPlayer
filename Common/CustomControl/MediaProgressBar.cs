@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -13,6 +14,10 @@ namespace Common.CustomControl
 {
     public class MediaProgressBar : RangeBase
     {
+        private Ellipse? _thumb = null;
+        private Canvas? _canvas = null;
+        private bool _isMouseCaptured = false;
+
         static MediaProgressBar()
         {
             //RangeBase의 기본 스타일이 아닌 MediaProgressBar의 스타일을 사용하기 위해 호출
@@ -92,9 +97,6 @@ namespace Common.CustomControl
             set { SetValue(BarThicknessProperty, value); }
         }
 
-        private Ellipse? _thumb = null;
-        private Canvas? _canvas = null;
-
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
@@ -111,7 +113,9 @@ namespace Common.CustomControl
 
             if (this._canvas != null)
             {
-                this._canvas.PreviewMouseDown += this.On_canvas_MouseDown;
+                this._canvas.PreviewMouseDown += this.On_canvas_PreviewMouseDown;
+                this._canvas.PreviewMouseMove += this.On_canvas_PreviewMouseMove;
+                this._canvas.PreviewMouseUp += this.On_canvas_PreviewMouseUp;
             }
         }
 
@@ -187,7 +191,7 @@ namespace Common.CustomControl
             }
         }
 
-        private void On_canvas_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private void On_canvas_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (this._canvas == null)
             {
@@ -198,7 +202,6 @@ namespace Common.CustomControl
             double pointX = point.X;
             double progressBarMin = this.Minimum;
             double progressBarMax = Math.Max(this.Maximum, this.Minimum);
-            double barY = this.RenderSize.Height / 2d - this.BarThickness / 2d;
 
             //현재 값 표시기 위치 결정
             if (progressBarMax > progressBarMin)
@@ -222,6 +225,55 @@ namespace Common.CustomControl
                 this._thumb.Width = this.ThumbRadius * 2;
                 this._thumb.Height = this.ThumbRadius * 2;
             }
+
+            this._canvas.CaptureMouse();
+            this._isMouseCaptured = true;
+        }
+
+        private void On_canvas_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (this._canvas == null ||
+                this._isMouseCaptured == false)
+            {
+                return;
+            }
+
+            var point = e.GetPosition(this._canvas);
+            double pointX = point.X;
+            double progressBarMin = this.Minimum;
+            double progressBarMax = Math.Max(this.Maximum, this.Minimum);
+
+            //현재 값 표시기 위치 결정
+            if (progressBarMax > progressBarMin)
+            {
+                if (pointX > this._canvas.ActualWidth)
+                {
+                    pointX = this._canvas.ActualWidth;
+                }
+                else if (pointX < 0)
+                {
+                    pointX = 0;
+                }
+
+                double centerX = pointX;
+                double thumbX = centerX - this.ThumbRadius;
+                this._thumb?.SetValue(Canvas.LeftProperty, thumbX);
+            }
+            else
+            {
+                this._thumb?.SetValue(Canvas.LeftProperty, -this.ThumbRadius);
+            }
+        }
+
+        private void On_canvas_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (this._canvas == null)
+            {
+                return;
+            }
+
+            this._canvas.ReleaseMouseCapture();
+            this._isMouseCaptured = false;
         }
     }
 }

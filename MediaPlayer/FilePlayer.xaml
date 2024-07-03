@@ -11,7 +11,6 @@
         <Grid.RowDefinitions>
             <RowDefinition />
             <RowDefinition Height="50"/>
-            <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
         <Image 
             Name="img_videoImage"
@@ -68,13 +67,6 @@
                 ThumbBrush="DarkOrange"
                 Minimum="0"
                 Maximum="100"/>
-        </Grid>
-        <Grid
-            Grid.Row="2">
-            <customControl:Test
-                Maximum="100"
-                Minimum="0"
-                Value="50"/>
         </Grid>
     </Grid>
 </UserControl>
