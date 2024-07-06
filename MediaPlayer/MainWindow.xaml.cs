@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common.CustomControl;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -18,7 +19,7 @@ namespace MediaPlayer
     /// <summary>
     /// MainWindow.xaml에 대한 상호 작용 논리
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow : WindowBasic
     {
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int Add(int a, int b);
@@ -29,7 +30,7 @@ namespace MediaPlayer
         public MainWindow()
         {
             InitializeComponent();
-            this.Loaded += MainWindow_Loaded;
+            //this.Loaded += MainWindow_Loaded;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
