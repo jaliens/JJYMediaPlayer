@@ -3,6 +3,42 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:customControl="clr-namespace:Common.CustomControl;assembly=Common">
 
+    <Style TargetType="Button" >
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="Transparent" Padding="5">
+                        <Grid Background="Transparent">
+                            <Ellipse
+                                Fill="#111111"
+                                Opacity="0.5"
+                                VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                            </Ellipse>
+                            <Ellipse
+                                x:Name="ellipse_back"
+                                Margin="3"
+                                VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                            </Ellipse>
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ellipse_back" Property="Fill" Value="Black"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="False">
+                            <Setter TargetName="ellipse_back" Property="Fill" Value="#333333"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+    </Style>
+
     <Style TargetType="Button" BasedOn="{x:Null}" x:Key="captionButtonStyle">
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -152,11 +188,6 @@
     </Style>
     <!--커스텀 윈도우 스타일-->
 
-    <Style TargetType="Button">
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Padding" Value="10"/> 
-    </Style>
 
     <Style TargetType="RadioButton">
         <Setter Property="Template">

@@ -6,6 +6,11 @@
              xmlns:local="clr-namespace:MediaPlayer"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -19,11 +24,12 @@
         
         <Grid
             Grid.Row="1">
-            <Button x:Name="btn_openCam" Content="켜기" 
+
+            <Button x:Name="btn_openCam" Content="▶" 
                     HorizontalAlignment="Center" VerticalAlignment="Stretch"
                     Click="OnOpenCamButtonClick"
                     Visibility="Visible"/>
-            <Button x:Name="btn_closeCam" Content="끄기" 
+            <Button x:Name="btn_closeCam" Content="■" 
                     HorizontalAlignment="Center" VerticalAlignment="Stretch"
                     Click="OnCloseCamButtonClick"
                     Visibility="Collapsed"/>
