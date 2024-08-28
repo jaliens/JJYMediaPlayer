@@ -17,9 +17,16 @@
             <RowDefinition />
             <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
-        <Image 
-            Name="img_videoImage"
-            Grid.Row="0"/>
+        <Grid 
+            Grid.Row="0" 
+            x:Name="win32WindowArea">
+        </Grid>
+        <Grid 
+            Grid.Row="0" 
+            Background="Black">
+            <Image 
+                Name="img_videoImage"/>
+        </Grid>
         <Grid
             Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -27,6 +34,8 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="50"/>
+                <ColumnDefinition Width="50"/>
             </Grid.ColumnDefinitions>
             <Button
                 Grid.Column="0"
@@ -39,13 +48,13 @@
                 Grid.Column="1"
                 BorderThickness="0"
                 Content="■"
-                Click="OnPlayWithSDLButtonClick"/>
+                Click="OnStopButtonClick"/>
             <Button
                 x:Name="btn_pause"
                 Grid.Column="2"
                 BorderThickness="0"
                 Visibility="Hidden"
-                Content="∥"
+                Content="⏸"
                 Click="OnPauseButtonClick"/>
             <Button
                 x:Name="btn_play"
@@ -53,12 +62,6 @@
                 BorderThickness="0"
                 Content="▶"
                 Click="OnPlayButtonClick"/>
-            <Slider 
-                x:Name="slider_video"
-                Visibility="Collapsed"
-                Grid.Column="3"
-                VerticalAlignment="Center"
-                PreviewMouseUp="OnVideoSliderMouseUp"/>
             <customControl:MediaProgressBar 
                 x:Name="mediaProgressBar"
                 Grid.Column="3"
@@ -71,7 +74,24 @@
                 ThumbRadius="10"
                 ThumbBrush="DarkOrange"
                 Minimum="0"
-                Maximum="100"/>
+                Maximum="100"
+                MouseValueChanged="OnProgressBar_MouseValueChanged"/>
+            <Button
+                x:Name="btn_fileOpen"
+                Grid.Column="4"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Content="📄"
+                ToolTip="파일열기"
+                Click="Onbtn_fileOpenClick"/>
+            <Button
+                x:Name="test"
+                Grid.Column="5"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Content="T"
+                ToolTip="파일열기"
+                Click="Onbtn_testClick"/>
         </Grid>
     </Grid>
 </UserControl>

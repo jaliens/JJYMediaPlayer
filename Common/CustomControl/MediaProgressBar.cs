@@ -17,6 +17,7 @@ namespace Common.CustomControl
         private Ellipse? _thumb = null;
         private Canvas? _canvas = null;
         private bool _isMouseCaptured = false;
+        private double? _draggingValue = 0;
 
         static MediaProgressBar()
         {
@@ -25,6 +26,7 @@ namespace Common.CustomControl
         }
 
 
+        #region property
         public static readonly DependencyProperty BufferStartValueProperty =
             DependencyProperty.Register(
                 "BufferStartValue",
@@ -96,6 +98,21 @@ namespace Common.CustomControl
             get { return (double)GetValue(BarThicknessProperty); }
             set { SetValue(BarThicknessProperty, value); }
         }
+        #endregion property
+
+
+        #region event
+        public static readonly RoutedEvent MouseValueChangedEvent = EventManager.RegisterRoutedEvent(
+            "MouseValueChanged", RoutingStrategy.Bubble, typeof(EventHandler<MouseValueChangedEventArgs>), typeof(MediaProgressBar));
+
+        public event EventHandler<MouseValueChangedEventArgs> MouseValueChanged
+        {
+            add { AddHandler(MouseValueChangedEvent, value); }
+            remove { RemoveHandler(MouseValueChangedEvent, value); }
+        }
+        #endregion event
+
+
 
         public override void OnApplyTemplate()
         {
@@ -155,6 +172,14 @@ namespace Common.CustomControl
             {
                 double bufferBarWidth = (bufferEnd - bufferStart) / (progressBarMax - progressBarMin) * this.RenderSize.Width;
                 double bufferStartX = bufferStart / (progressBarMax - progressBarMin) * this.RenderSize.Width;
+                if (bufferStartX < 0)
+                {
+                    bufferStartX = 0;
+                }
+                if (bufferStartX + bufferBarWidth > this.RenderSize.Width)
+                {
+                    bufferBarWidth -= bufferStartX + bufferBarWidth - this.RenderSize.Width;
+                }
                 Rect bufferRect = new Rect()
                 {
                     X = bufferStartX,
@@ -166,7 +191,11 @@ namespace Common.CustomControl
             }
 
             //현재 값 표시기 위치 결정
-            if (progressBarMax > progressBarMin &&
+            if (this._isMouseCaptured == true)
+            {
+
+            }
+            else if (progressBarMax > progressBarMin &&
                 value <= progressBarMax &&
                 value >= progressBarMin)
             {
@@ -226,6 +255,9 @@ namespace Common.CustomControl
                 this._thumb.Height = this.ThumbRadius * 2;
             }
 
+            double valueRange = progressBarMax - progressBarMin;
+            this._draggingValue = progressBarMin + valueRange * (pointX / this._canvas.ActualWidth);
+
             this._canvas.CaptureMouse();
             this._isMouseCaptured = true;
         }
@@ -242,6 +274,7 @@ namespace Common.CustomControl
             double pointX = point.X;
             double progressBarMin = this.Minimum;
             double progressBarMax = Math.Max(this.Maximum, this.Minimum);
+            double valueRange = progressBarMax - progressBarMin;
 
             //현재 값 표시기 위치 결정
             if (progressBarMax > progressBarMin)
@@ -258,6 +291,8 @@ namespace Common.CustomControl
                 double centerX = pointX;
                 double thumbX = centerX - this.ThumbRadius;
                 this._thumb?.SetValue(Canvas.LeftProperty, thumbX);
+
+                this._draggingValue = progressBarMin + valueRange * (pointX / this._canvas.ActualWidth);
             }
             else
             {
@@ -274,6 +309,26 @@ namespace Common.CustomControl
 
             this._canvas.ReleaseMouseCapture();
             this._isMouseCaptured = false;
+
+            if (this._draggingValue != null)
+            {
+                this.Value = (double)this._draggingValue;
+                RoutedEventArgs newEventArgs = new MouseValueChangedEventArgs(MouseValueChangedEvent,this.Value);
+                RaiseEvent(newEventArgs);
+            }
+            this._draggingValue = null;
+        }
+    }
+
+
+
+    public class MouseValueChangedEventArgs : RoutedEventArgs
+    {
+        public double Value { get; set; }
+
+        public MouseValueChangedEventArgs(RoutedEvent routedEvent, double value) : base(routedEvent)
+        {
+            this.Value = value;
         }
     }
 }

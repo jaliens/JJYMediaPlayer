@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -18,6 +19,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Forms.Integration;
+using System.Threading;
+using System.Windows.Interop;
 
 namespace MediaPlayer
 {
@@ -26,6 +30,8 @@ namespace MediaPlayer
     /// </summary>
     public partial class FilePlayer : UserControl
     {
+        const uint SWP_NOZORDER = 0x0004;
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void ImageCallback(IntPtr data, int size, int width, int height);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -42,6 +48,10 @@ namespace MediaPlayer
         private delegate void OnPauseCallbackFunction();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void OnResumeCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnStopCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnRenderTimingCallbackFunction();
 
         ImageCallback? _imageCallBack = null;
         OnVideoLengthCallbackFunction? _videoLengthCallback = null;
@@ -51,11 +61,17 @@ namespace MediaPlayer
         OnStartCallbackFunction? _startCallback = null;
         OnPauseCallbackFunction? _pauseCallback = null;
         OnResumeCallbackFunction? _resumeCallback = null;
+        OnStopCallbackFunction? _stopCallback = null;
+        OnRenderTimingCallbackFunction? _renderTimingCallback = null;
+        
+        private string _fileName = string.Empty;
+        private int _videoWidth = 0;
+        private int _videoHeight = 0;
+
+        private IntPtr _directXWindowHandle = IntPtr.Zero;
 
 
-
-
-
+        private bool _isPaused = false;
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RegisterOnImgDecodeCallback(ImageCallback callback);
@@ -78,15 +94,20 @@ namespace MediaPlayer
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnStopCallback(OnStopCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
 
 
 
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void CreatePlayer();
+        private static extern bool CreatePlayer();
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void OpenFileStream();
+        private static extern void OpenFileStream(string? filePath, out int videoWidth, out int videoHeight);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void Play();
@@ -99,6 +120,9 @@ namespace MediaPlayer
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void JumpPlayTime(double targetPercent);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Cleanup();
 
 
 
@@ -132,23 +156,79 @@ namespace MediaPlayer
 
 
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool CreateDx11RenderScreenOnPlayer(IntPtr hWnd, int videoWidth, int videoHeight);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr CreateDirectXWindow(IntPtr hInstance, int width, int height, IntPtr parentHwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void RenderTestRectangleDx11();
+
+
+
+
+
+
+
+
+
+
+
+
 
         public FilePlayer()
         {
             this.InitializeComponent();
             this.Loaded += this.OnFilePlayer_Loaded;
+            this.SizeChanged += OnFilePlayer_SizeChanged;
 
             this._imageCallBack = this.OnImageCallback;
             this._videoLengthCallback = this.OnVideoLengthCallback;
             this._videoProgressCallback = this.OnVideoProgressCallback;
             this._bufferProgressCallback = this.OnBufferProgressCallback;
             this._bufferStartPosCallback = this.OnBufferStartPosCallback;
+            this._pauseCallback = this.OnPauseCallback;
+            this._resumeCallback = this.OnResumeCallback;
+            this._stopCallback = this.OnStopCallback;
+            this._renderTimingCallback = this.OnRenderTimingCallback;
         }
 
-        
+        private void OnStopCallback()
+        {
+            this._isPaused = false;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                this.btn_play.Visibility = Visibility.Visible;
+                this.btn_pause.Visibility = Visibility.Hidden;
+            });
+        }
+
+        private void OnRenderTimingCallback()
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+
+            });
+        }
+
+        private void OnResumeCallback()
+        {
+            this._isPaused = false;
+        }
+
+        private void OnPauseCallback()
+        {
+            this._isPaused = true;
+        }
 
         private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
         {
+            //this.CreateWin32Window();
             CreatePlayer();
 
             if (this._imageCallBack != null)
@@ -167,34 +247,185 @@ namespace MediaPlayer
             {
                 RegisterOnBufferProgressCallback(this._bufferProgressCallback);
             }
+            if (this._pauseCallback != null)
+            {
+                RegisterOnPauseCallback(this._pauseCallback);
+            }
+            if (this._resumeCallback != null)
+            {
+                RegisterOnResumeCallback(this._resumeCallback);
+            }
+            if (this._stopCallback != null)
+            {
+                RegisterOnStopCallback(this._stopCallback);
+            }
+            if (this._renderTimingCallback != null)
+            {
+                RegisterOnRenderTimingCallback(this._renderTimingCallback);
+            }
 
-            OpenFileStream();
 
             //비관리쪽에서만 쓸 녀석들이기 때문에 가비지컬렉터에 의해 정리될 가능성 제거
             GC.KeepAlive(this._imageCallBack);
             GC.KeepAlive(this._videoLengthCallback);
             GC.KeepAlive(this._videoProgressCallback);
             GC.KeepAlive(this._bufferProgressCallback);
+            GC.KeepAlive(this._bufferStartPosCallback);
+
+            GC.KeepAlive(this._pauseCallback);
+            GC.KeepAlive(this._resumeCallback);
+            GC.KeepAlive(this._stopCallback);
+            GC.KeepAlive(this._renderTimingCallback);
+
+            var parentWnd = Window.GetWindow(this);
+            parentWnd.LocationChanged += OnParentWnd_LocationChanged;
+
+            Task.Run(() =>
+            {
+                Thread.Sleep(2000);
+                RenderTestRectangleDx11();
+            });
+        }
+
+        private void OnParentWnd_LocationChanged(object? sender, EventArgs e)
+        {
+            this.UpdateDirectXWindowPosition();
+        }
+
+        /// <summary>
+        /// 파일로부터 영상 스트림을 열고<br/>
+        /// 랜더링용 win32창을 만들고<br/>
+        /// DirectX11 랜더러를 초기화
+        /// </summary>
+        private void OpenStreamAndRenderer()
+        {
+            OpenFileStream(this._fileName, out this._videoWidth, out this._videoHeight);
+            this.CreateWin32Window();
+            CreateDx11RenderScreenOnPlayer(this._directXWindowHandle, this._videoWidth, this._videoHeight);
+        }
+
+        /// <summary>
+        /// directx 11 비디오 랜더링을 위한 win32 창 생성<br/>
+        /// </summary>
+        private void CreateWin32Window()
+        {
+            if (this._directXWindowHandle != IntPtr.Zero)
+            {
+                return;
+            }
+
+            var parentWnd = Window.GetWindow(this);
+            double multiplier = 1.0;
+            PresentationSource source = PresentationSource.FromVisual(parentWnd);
+            if (source != null && source.CompositionTarget != null)
+            {
+                multiplier = source.CompositionTarget.TransformToDevice.M11;//디스플레이 설정에서 배율 설정값 가져오기
+            }
+
+            var videoRatio = (double)this._videoWidth / this._videoHeight;
+            var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
+
+            double innerWidth = 0;
+            double innerHeight = 0;
+            if (videoRatio >= gridRatio)
+            {
+                innerWidth = this.win32WindowArea.ActualWidth;
+                innerHeight = this.win32WindowArea.ActualWidth / videoRatio;
+            }
+            else //if (videoRatio < gridRatio)
+            {
+                innerHeight = this.win32WindowArea.ActualHeight;
+                innerWidth = this.win32WindowArea.ActualHeight * videoRatio;
+            }
+
+            int targetWidth = (int)(innerWidth * multiplier);
+            int targetHeight = (int)(innerHeight * multiplier);
+
+            this._directXWindowHandle = CreateDirectXWindow(Process.GetCurrentProcess().Handle, (int)targetWidth, (int)targetHeight, new WindowInteropHelper(parentWnd).Handle);
+            this.UpdateDirectXWindowPosition();
+        }
+
+        /// <summary>
+        /// Win32 창의 위치와 크기를 WPF 창에 맞춰 업데이트
+        /// </summary>
+        private void UpdateDirectXWindowPosition()
+        {
+            var parentWnd = Window.GetWindow(this);
+
+            Point relativeLocation = win32WindowArea.TransformToAncestor(parentWnd)
+                                              .Transform(new Point(0, 0));
+
+            double multiplier = 1.0;
+            PresentationSource source = PresentationSource.FromVisual(this);
+            if (source != null && source.CompositionTarget != null)
+            {
+                multiplier = source.CompositionTarget.TransformToDevice.M11;//디스플레이 설정에서 배율 설정값 가져오기
+            }
+
+
+
+
+
+            var videoRatio = (double)this._videoWidth / this._videoHeight;
+            var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
+
+            double innerWidth = 0;
+            double innerHeight = 0;
+            double innerLeftOffset = 0;
+            double innerTopOffset = 0;
+            if (videoRatio >= gridRatio)
+            {
+                innerWidth = this.win32WindowArea.ActualWidth;
+                innerHeight = this.win32WindowArea.ActualWidth / videoRatio;
+                innerTopOffset = (this.win32WindowArea.ActualHeight - innerHeight) / 2;
+            }
+            else //if (videoRatio < gridRatio)
+            {
+                innerHeight = this.win32WindowArea.ActualHeight;
+                innerWidth = this.win32WindowArea.ActualHeight * videoRatio;
+                innerLeftOffset = (this.win32WindowArea.ActualWidth - innerWidth) / 2;
+            }
+
+
+
+
+
+            int videoLeft = (int)((relativeLocation.X + innerLeftOffset) * multiplier);
+            int videoTop = (int)((relativeLocation.Y + innerTopOffset) * multiplier);
+            int targetLeft = (int)(parentWnd.Left * multiplier) + videoLeft;
+            int targetTop = (int)(parentWnd.Top * multiplier) + videoTop;
+            //int targetWidth = (int)(this.win32WindowArea.ActualWidth * multiplier);
+            //int targetHeight = (int)(this.win32WindowArea.ActualHeight * multiplier);
+            int targetWidth = (int)(innerWidth * multiplier);
+            int targetHeight = (int)(innerHeight * multiplier);
+            SetWindowPos(this._directXWindowHandle, IntPtr.Zero, targetLeft, targetTop, targetWidth, targetHeight, SWP_NOZORDER);
+        }
+
+        private void OnFilePlayer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            this.UpdateDirectXWindowPosition();
         }
 
         private void OnImageCallback(IntPtr data, int size, int width, int height)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Task.Run(()=>
             {
-                var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Rgb24, null);
-                bitmap.Lock();
-                int bytesPerPixel = 3;
-                int stride = width * bytesPerPixel;
-                bitmap.WritePixels(new Int32Rect(0, 0, width, height), data, width * height * bytesPerPixel, stride);
-                bitmap.Unlock();
-                this.img_videoImage.Source = bitmap;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Rgb24, null);
+                    bitmap.Lock();
+                    int bytesPerPixel = 3;
+                    int stride = width * bytesPerPixel;
+                    bitmap.WritePixels(new Int32Rect(0, 0, width, height), data, width * height * bytesPerPixel, stride);
+                    bitmap.Unlock();
+                    this.img_videoImage.Source = bitmap;
+                });
             });
         }
 
         private void OnVideoLengthCallback(double length)
         {
             length = 100;
-            this.slider_video.Maximum = length;
             this.mediaProgressBar.Minimum = 0;
             this.mediaProgressBar.Maximum = length;
             Console.WriteLine("길이:" + length);
@@ -202,24 +433,20 @@ namespace MediaPlayer
 
         private void OnVideoProgressCallback(double progress)
         {
-            Console.WriteLine("영상 프로그래스:" + progress);
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.BeginInvoke(() =>
             {
-                this.slider_video.Value = progress;
                 this.mediaProgressBar.BufferStartValue = progress;
                 this.mediaProgressBar.Value = progress;
             });
-            
         }
 
         private void OnBufferProgressCallback(double progress)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 this.mediaProgressBar.BufferEndValue = progress;
-                Console.WriteLine("버퍼:"+progress);
+                //Console.WriteLine("버퍼:" + progress);
             });
-            
         }
 
         private void OnBufferStartPosCallback(double progress)
@@ -233,9 +460,21 @@ namespace MediaPlayer
 
         private void OnPlayButtonClick(object sender, RoutedEventArgs e)
         {
-            Play();
-            this.btn_pause.Visibility = Visibility.Visible;
-            this.btn_play.Visibility = Visibility.Hidden;
+            if (this._isPaused == true)
+            {
+                Play();
+                this.btn_pause.Visibility = Visibility.Visible;
+                this.btn_play.Visibility = Visibility.Hidden;
+            }
+            else
+            {
+                Stop();
+                this.OpenStreamAndRenderer();
+
+                Play();
+                this.btn_pause.Visibility = Visibility.Visible;
+                this.btn_play.Visibility = Visibility.Hidden;
+            }
         }
 
 
@@ -280,23 +519,40 @@ namespace MediaPlayer
             this.btn_pause.Visibility = Visibility.Hidden;
         }
 
-        private void OnVideoSliderMouseUp(object sender, MouseButtonEventArgs e)
+        private object jumpLock = new object();
+
+        private void OnProgressBar_MouseValueChanged(object sender, Common.CustomControl.MouseValueChangedEventArgs e)
         {
-            Slider? slider = sender as Slider;
-            if (slider != null)
+            Task.Run(()=>
             {
-                // 클릭한 위치를 슬라이더의 값으로 변환
-                var point = e.GetPosition(slider);
-                //double value = (point.X / slider.ActualWidth) * (slider.Maximum - slider.Minimum) + slider.Minimum;
-
-                // 슬라이더의 값 설정
-                double value = point.X / slider.ActualWidth * 100;
-
-                Task.Run(() =>
+                lock (this.jumpLock)
                 {
-                    JumpPlayTime(value);
-                });
+                    JumpPlayTime(e.Value);
+                }
+            });
+        }
+
+        private void OnStopButtonClick(object sender, RoutedEventArgs e)
+        {
+            Stop();
+        }
+
+        private void Onbtn_fileOpenClick(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Video Files|*.mp4;*.avi;*.mkv;*.mov;*.wmv|All Files|*.*";
+            if (openFileDialog.ShowDialog() == true)
+            {
+                this._fileName = openFileDialog.FileName;
+                Stop();
+                this.OpenStreamAndRenderer();
             }
+        }
+
+        private void Onbtn_testClick(object sender, RoutedEventArgs e)
+        {
+            var dxTestWnd = new DirectXTestWindow();
+            dxTestWnd.Show();
         }
     }
 }

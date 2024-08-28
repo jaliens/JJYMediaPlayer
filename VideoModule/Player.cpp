@@ -1,5 +1,20 @@
 #pragma once
 
+#include "pch.h"
+#include "Monitor.h"
+#include "Player.h"
+#include <thread>
+#include <future>
+#include <chrono>
+#include <d3d11.h>
+#include <dxgi.h>
+#include <dxgi1_2.h>
+#include <wrl.h>
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
+#include <atomic>
+#include <iostream>
+
 extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,87 +31,98 @@ extern "C" {
 #include <SDL.h>
 }
 
-#include <mutex>
-#include <iostream>
-#include <future>
-#include <chrono>
-#include "pch.h"
-#include "Player.h"
-#include "Monitor.h"
 
-int Player::decode_packet(AVCodecContext* decoderCtx, const AVPacket* pkt)
-{
-    int ret = 0;
+#define PKT_END     -0x9999
 
-    // submit the packet to the decoder
-    ret = avcodec_send_packet(decoderCtx, pkt);
-    if (ret < 0) {
-        fprintf(stderr, "Error submitting a packet for decoding\n");
-        return ret;
-    }
-
-    // get all the available frames from the decoder
-    while (ret >= 0) {
-        AVFrame* frame;
-        frame = av_frame_alloc();
-
-        ret = avcodec_receive_frame(decoderCtx, frame);
-        if (ret < 0) {
-            // those two return values are special and mean there is no output
-            // frame available, but there were no errors during decoding
-            if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                return 0;
-
-            fprintf(stderr, "Error during decoding\n");
-            return ret;
-        }
-
-        // write the frame data to output file
-        if (decoderCtx->codec->type == AVMEDIA_TYPE_VIDEO)
-        {
-            //ret = output_video_frame(frame);
-            //TODO : 버퍼에 삽입
-        }
-        else
-        {
-            //ret = output_audio_frame(frame);
-        }
-
-        av_frame_unref(frame);
-        if (ret < 0)
-            return ret;
-    }
-
-    return 0;
-}
 
 int Player::startReadThread()
 {
     this->readThread = new std::thread(&Player::readThreadTask, this);
-    this->readThread->detach();
     return 0;
 }
 
 
-int Player::startRenderThread()
-{
-    this->renderThread = new std::thread(&Player::videoRenderThreadTask, this);
-    this->renderThread->detach();
-
-    this->progressCheckingThread = new std::thread(&Player::progressCheckingThreadTask, this);
-    this->progressCheckingThread->detach();
-    return 0;
-}
+//int Player::startRenderThread()
+//{
+//    this->renderThread = new std::thread(&Player::videoRenderThreadTask, this);
+//    this->renderThread->detach();
+//
+//    this->progressCheckingThread = new std::thread(&Player::progressCheckingThreadTask, this);
+//    this->progressCheckingThread->detach();
+//    return 0;
+//}
 
 int Player::startDecodeAndRenderThread()
 {
     this->decodeAndRenderThread = new std::thread(&Player::videoDecodeAndRenderThreadTask, this);
-    this->decodeAndRenderThread->detach();
 
-    this->progressCheckingThread = new std::thread(&Player::progressCheckingThreadTask, this);
-    this->progressCheckingThread->detach();
+    if (this->progressCheckingThread == nullptr)
+    {
+        this->progressCheckingThread = new std::thread(&Player::progressCheckingThreadTask, this);
+    }
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 bool playStarted = false;
@@ -111,10 +137,26 @@ void Player::readThreadTask()
 {
     std::vector<AVPacket*> tempBuffer;//온전한 GOP 단위의 패킷 묶음을 받는 목적의 임시 버퍼(I프레임 ~ 다음 I프레임 직전)
     bool isFirstKeyFrameFound = false;
-
+    playStarted = false;
+    this->isReading = true;
     while (this->isReading == true) {
-        AVPacket* packet = av_packet_alloc();
+        //리딩일시정지플래그 확인
+        {
+            std::unique_lock<std::mutex> readingMutexLock(this->readingPauseMutex);
+            this->isWaitingAfterCommand = false;
+            this->readingPauseCondVar.notify_all();
+            //printf("    리드가 노티파이\n");
+            this->readingPauseCondVar.wait(readingMutexLock, [this] { return (this->isReadingPaused == false || this->isReading == false); });
+        }
 
+        if (this->isReading == false)
+        {
+            break;
+        }
+
+
+        AVPacket* packet = av_packet_alloc();
+        //printf("푸시푸시푸시.................\n");
         //스트림에서 패킷 읽는데 성공한 경우
         if (av_read_frame(this->formatContext, packet) >= 0) {
 
@@ -173,9 +215,18 @@ void Player::readThreadTask()
                 for (AVPacket* p : tempBuffer)
                 {
                     std::unique_lock<std::mutex> lock(bufferMutex);
-                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE; });
-                    this->packetBuffer.push(p);
-                    printf("패킷(DTS:%d) 푸시 성공, 버퍼 크기: %d\n", (int)p->dts, (int)this->packetBuffer.size());
+                    this->bufferCondVar.wait(lock, [this] {
+                            return (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false);
+                        });
+                    if (this->isReading == false)
+                    {
+                        break;
+                    }
+
+                    if (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE)
+                    {
+                        this->packetBuffer.push(p);
+                    }
                 }
                 tempBuffer.clear();
 
@@ -183,16 +234,18 @@ void Player::readThreadTask()
                 tempBuffer.push_back(packet);
             }
 
-            if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
-                this->bufferCondVar.notify_all();
-                printf("디코딩 시작 가능 알림");
+            {
+                std::lock_guard<std::mutex> lock(bufferMutex);
+                if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                    this->bufferCondVar.notify_all();
+                    //printf("디코딩 시작 가능 알림");
+                }
             }
+            
         }
         //에러 또는 파일이 끝난 경우
         else 
         {
-            printf("패킷 읽기 끝 (에러 또는 파일 끝)\n");
-
             //임시버퍼에 GOP가 남아있는 경우 처리
             if (isFirstKeyFrameFound == true &&
                 tempBuffer.empty() == false)
@@ -206,62 +259,181 @@ void Player::readThreadTask()
                 for (AVPacket* p : tempBuffer)
                 {
                     std::unique_lock<std::mutex> lock(bufferMutex);
-                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE; });
-                    this->packetBuffer.push(p);
-                    printf("패킷(DTS:%d) 푸시 성공(마지막 GOP), 버퍼 크기: %d\n", (int)p->dts, (int)this->packetBuffer.size());
+                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false; });
+                    if (this->isReading == false)
+                    {
+                        break;
+                    }
+                    if (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE)
+                    {
+                        this->packetBuffer.push(p);
+                    }
                 }
                 tempBuffer.clear();
 
-                if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
-                    this->bufferCondVar.notify_all();
-                    printf("디코딩 시작 가능 알림(패킷 리드 끝)");
+                if (this->isReading == false)
+                {
+                    break;
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(bufferMutex);
+                    if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                        this->bufferCondVar.notify_all();
+                        //printf("디코딩 시작 가능 알림(패킷 리드 끝)");
+                    }
                 }
             }
             isFirstKeyFrameFound = false;
 
-            av_packet_free(&packet);
-            this->isReading = false;
+            {
+                std::unique_lock<std::mutex> lock(bufferMutex);
+                this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReading == false || this->isReadingPaused == true; });
+                if (this->isReadingPaused == true)
+                {
+                    continue;
+                }
+                if (this->isReading == false)
+                {
+                    break;
+                }
+                if (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE)
+                {
+                    //끝을 알리는 가짜 패킷
+                    AVPacket* endPacket = av_packet_alloc();
+                    endPacket->flags = PKT_END;
+                    this->packetBuffer.push(endPacket);
+                }
+            }
+            
+
+            //av_packet_free(&packet);
             this->bufferCondVar.notify_all();
-            break;
+            continue;
         }
     }
 
-    avformat_close_input(&this->formatContext);
+    playStarted = false;
+    this->isReading = false;
+    this->bufferCondVar.notify_all();
+    this->decodingPauseCondVar.notify_all();
+    //avformat_close_input(&this->formatContext);
 }
 
 
 
-
+/// <summary>
+/// 디코딩 후 랜더링,
+/// 버퍼가 CAN_POP_PACKET_BUFFER_SIZE이상 차면 시작 가능,
+/// 한 번 시작하면 버퍼가 빌 때 까지 계속 디코딩,
+/// </summary>
 void Player::videoDecodeAndRenderThreadTask()
 {
-    //버퍼가 CAN_POP_PACKET_BUFFER_SIZE이상 차면 시작 가능
-    //한 번 시작하면 버퍼가 빌 때 까지 계속 디코딩
+    this->endOfDecoding = false;
 
-    while (this->isReading || 
-            !this->packetBuffer.empty()) {
-        std::unique_lock<std::mutex> lock(this->bufferMutex);
-        this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE; });
-
-        while (!this->packetBuffer.empty()) 
+    while (this->isReading && this->endOfDecoding == false) {
         {
-            AVPacket* packet = this->packetBuffer.front();
-            this->packetBuffer.pop();
+            std::unique_lock<std::mutex> lock(this->bufferMutex);
+            this->bufferCondVar.wait(lock, [this] { 
+                return this->packetBuffer.empty() == false && 
+                    (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE || this->isReading == false) ||
+                    this->endOfDecoding == true;
+                });
+        }
+        if (this->endOfDecoding == true)
+        {
+            return;
+        }
 
-            printf("               패킷 팝 dts:%d    packetBuffer cnt:%d\n", (int)packet->dts, (int)this->packetBuffer.size());
+        
+        //디코딩일시정지플래그 확인
+        {
+            std::unique_lock<std::mutex> decodingPauseMutexLock1(this->decodingPauseMutex);
+            this->isWaitingAfterCommand = false;
+            this->decodingPauseCondVar.notify_all();
+            this->decodingPauseCondVar.wait(decodingPauseMutexLock1, [this] { return this->isDecodingPaused == false || this->endOfDecoding == true; });
+        }
+        if (this->endOfDecoding == true)
+        {
+            return;
+        }
+
+        while (true) 
+        {
+            //디코딩일시정지플래그 확인
+            {
+                std::unique_lock<std::mutex> decodingPauseMutexLock1(this->decodingPauseMutex);
+                this->isWaitingAfterCommand = false;
+                this->decodingPauseCondVar.notify_all();
+                this->decodingPauseCondVar.wait(decodingPauseMutexLock1, [this] { return this->isDecodingPaused == false || this->endOfDecoding == true; });
+            }
+            if (this->endOfDecoding == true)
+            {
+                return;
+            }
+
+            AVPacket* packet = nullptr;
+            {
+                std::unique_lock<std::mutex> lock(this->bufferMutex);
+                if (this->packetBuffer.empty() == true)
+                {
+                    break;
+                }
+                packet = this->packetBuffer.front();
+                this->packetBuffer.pop();
+            }
 
             if (packet->stream_index != this->video_stream_idx)
             {
                 continue;
             }
 
-            printf("               프레임 디코드 함수 호출 DTS:%d\n", (int)packet->dts);
+            //마지막 패킷을 읽은 경우
+            if (packet->flags == PKT_END)
+            {
+                //프로그래스바 갱신
+                this->progress_percent = 100;
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                fprintf(stderr, "   마지막 마지막 마지막 마지막 패킷\n");
+
+                this->endOfDecoding = true;
+                //종료0
+
+                auto t = new std::thread([this]() {
+                    this->stop();
+                    });
+
+                /*std::async(std::launch::async, [this]() {
+                    this->stop();
+                });*/
+                fprintf(stderr, "   end\n");
+                fprintf(stderr, "   end\n");
+                break;
+            }
+
+
+
+            //printf("               프레임 디코드 함수 호출 DTS:%d\n", (int)packet->dts);
             if (avcodec_send_packet(video_dec_ctx, packet) >= 0)
             {
                 while (true)
                 {
+                    //디코딩일시정지플래그 확인
+                    {
+                        std::unique_lock<std::mutex> decodingPauseMutexLock1(this->decodingPauseMutex);
+                        this->isWaitingAfterCommand = false;
+                        this->decodingPauseCondVar.notify_all();
+                        this->decodingPauseCondVar.wait(decodingPauseMutexLock1, [this] { return this->isDecodingPaused == false || this->endOfDecoding == true; });
+                    }
+                    if (this->endOfDecoding == true)
+                    {
+                        return;
+                    }
+
                     AVFrame* frame = av_frame_alloc();
                     int ret = avcodec_receive_frame(video_dec_ctx, frame);
-                    printf("               디코딩된 프레임 처리 PTS:%d\n", (int)frame->pts);
+                    //printf("               디코딩된 프레임 처리 PTS:%d\n", (int)frame->pts);
                     if (ret < 0)
                     {
                         av_frame_free(&frame);
@@ -283,40 +455,55 @@ void Player::videoDecodeAndRenderThreadTask()
                         break;
                     }
                     else
-                    {
-                        fprintf(stderr, "               디코드된 프레임 처리!!!!!!!!!!!!!!\n");
+                    {                        
+                        //////wpf image 랜더링
+                        //AVFrame* afterConvertFrame;
+                        //afterConvertFrame = av_frame_alloc();
+                        //if (!afterConvertFrame) {
+                        //    continue;
+                        //}
 
-                        // TODO:여기서 프레임 처리 (e.g., display, save, etc.)
-                        
-                        AVFrame* afterConvertFrame;
-                        afterConvertFrame = av_frame_alloc();
-                        if (!afterConvertFrame) {
-                            fprintf(stderr, "새 프레임 할당 실패\n");
-                            continue;
-                        }
-                        //변환 프레임의 버퍼 할당
-                        if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
-                            fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
-                            continue;
-                        }
+                        ////변환 프레임의 버퍼 할당
+                        //if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, /*AV_PIX_FMT_RGBA*/AV_PIX_FMT_RGB24, 1) < 0) {
+                        //    continue;
+                        //}
 
-                        // 변환 실행
-                        sws_scale(this->swsCtx,
-                            (const uint8_t* const*)frame->data, frame->linesize,
-                            0, frame->height,
-                            afterConvertFrame->data, afterConvertFrame->linesize);
+                        //// 변환 실행
+                        //sws_scale(this->swsCtx,
+                        //    (const uint8_t* const*)frame->data, frame->linesize,
+                        //    0, frame->height,
+                        //    afterConvertFrame->data, afterConvertFrame->linesize);
 
-                        //콜백 메서드 호출
-                        if (this->onImageDecodeCallback != nullptr)
+                        ////콜백 메서드 호출
+                        //if (this->onImageDecodeCallback != nullptr)
+                        //{
+                        //    this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                        //}
+                        /////wpf image 랜더링
+
+
+                        //this->renderFrame();
+                        /*if (this->onRenderTimingCallbackFunction != nullptr)
                         {
-                            this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
-                        }
+                            this->onRenderTimingCallbackFunction();
+                        }*/
+
+
+
+                        ////directX11 랜더링
+                        this->directx11Renderer->Render(frame);
+                        //this->directx11Renderer->Render();
+
+
+
 
                         //프로그래스바 갱신
                         this->progress_percent = (double)frame->pts * videoTimeBase_ms / this->duration_ms * 100.0;
+                        fprintf(stderr, "               프로그래스 : %d \n", this->progress_percent);
 
                         //다음 프레임 재생 지연
                         std::this_thread::sleep_for(std::chrono::milliseconds((long long)this->videoTimeBase_ms));
+                        av_frame_unref(frame);
                         av_frame_free(&frame);
                     }
 
@@ -330,7 +517,7 @@ void Player::videoDecodeAndRenderThreadTask()
         bufferCondVar.notify_all();
     }
 
-    avcodec_free_context(&this->video_dec_ctx);
+    //avcodec_free_context(&this->video_dec_ctx);
 }
 
 
@@ -392,147 +579,147 @@ void Player::videoDecodeAndRenderThreadTask()
 
 
 
-void Player::videoRenderThreadTask()
-{
-    //루프
-        //랜더큐에서 프레임 추출
-        //프레임 랜더링
-
-    //// RGB 데이터에 필요한 버퍼 크기 계산
-    this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
-
-    int ret = 0;
-
-    int popCount = 0;
-
-    while (1)
-    {
-        this->monitor_forRenderingThreadEnd.checkRequestAndWait();
-
-        {
-            std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
-            bool isPaused = this->isPaused;
-        }
-
-        if (isPaused == true)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds((int64_t)this->videoTimeBase_ms));
-            continue;
-        }
-        
-
-        AVFrame* frame = nullptr;
-        bool isRenderingQEmpty = false;
-
-        {
-            std::lock_guard<std::mutex> lock(this->renderingQmtx);
-            
-            isRenderingQEmpty = this->videoRenderingQueue.empty();
-            if (isRenderingQEmpty == false)
-            {
-                frame = this->videoRenderingQueue.front();
-                this->videoRenderingQueue.pop();
-            }
-        }
-
-        if (isRenderingQEmpty == true)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        else
-        {
-            
-            /*int a = frame->pict_type;
-            printf("type : %ld\n", a);*/
-
-            //시간 측정
-            //현재 시각
-            //새로운 시작이면 ( pts가 0이면
-                //현재 시각을 starttime으로 기록
-                //현재 pts를 startPts으로 기록
-            //진행 중이었으면
-                //현재 시각과 startime의 차이 계산(시작 후 흐른 시간)
-            //pts를 ms 단위로 변환
-            int64_t timeSpent = 0;//시작 후 경과 시간
-            auto now = std::chrono::steady_clock::now();
-            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-            if (this->isRenderStarted == false)
-            {
-                this->startPts_ms = frame->pts * videoTimeBase_ms;
-                this->startTime_ms = now_ms;
-                this->isRenderStarted = true;
-            }
-            else
-            {
-                timeSpent = now_ms - this->startTime_ms;
-            }
-            int64_t pts_ms = frame->pts * videoTimeBase_ms;
-
-            //pts 비교
-            //목표 시간 보다 빠른 경우
-                //기다렸다가 진행
-            if (pts_ms - this->startPts_ms > timeSpent)
-            {
-                int64_t gap_ms = pts_ms - this->startPts_ms - timeSpent;
-                std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
-                
-            }
-
-            //적정 시간 보다 느린 경우
-                //몇 개나 패스해야할지 계산(계산 법 : 차이나는 시간 / 타임 베이스)
-                //다음 프레임으로 패스
-            else if (pts_ms - this->startPts_ms < timeSpent)
-            {
-                int64_t gap_ms = timeSpent - (pts_ms - this->startPts_ms);
-                int numToPass = gap_ms / videoTimeBase_ms;
-                if (numToPass > 0)
-                {
-                    //버퍼링 필요함
-                    printf("으아으아\n");
-                    continue;
-                }
-            }
-            
-            if (this->onVideoProgressCallback != nullptr)
-            {
-                this->progress_ms = pts_ms;
-            }
-
-            AVFrame* afterConvertFrame;
-            afterConvertFrame = av_frame_alloc();
-            if (!afterConvertFrame) {
-                fprintf(stderr, "새 프레임 할당 실패\n");
-                continue;
-            }
-            //변환 프레임의 버퍼 할당
-            if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
-                fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
-                continue;
-            }
-            /*this->swsCtx = sws_getContext(
-                this->width, this->height, this->pix_fmt,
-                this->width, this->height, AV_PIX_FMT_RGB24,
-                SWS_BILINEAR, NULL, NULL, NULL);
-            if (!this->swsCtx) {
-                fprintf(stderr, "이미지 포멧 변환 불가\n");
-                continue;
-            }*/
-
-
-            // 변환 실행
-            sws_scale(this->swsCtx,
-                (const uint8_t* const*)frame->data, frame->linesize,
-                0, frame->height,
-                afterConvertFrame->data, afterConvertFrame->linesize);
-
-            //콜백 메서드 호출
-            if (this->onImageDecodeCallback != nullptr)
-            {
-                this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
-            }
-        }
-    }
-}
+//void Player::videoRenderThreadTask()
+//{
+//    //루프
+//        //랜더큐에서 프레임 추출
+//        //프레임 랜더링
+//
+//    //// RGB 데이터에 필요한 버퍼 크기 계산
+//    this->img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, this->width, this->height, 1);
+//
+//    int ret = 0;
+//
+//    int popCount = 0;
+//
+//    while (1)
+//    {
+//        this->monitor_forRenderingThreadEnd.checkRequestAndWait();
+//
+//        {
+//            std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
+//            bool isPaused = this->isPaused;
+//        }
+//
+//        if (isPaused == true)
+//        {
+//            std::this_thread::sleep_for(std::chrono::milliseconds((int64_t)this->videoTimeBase_ms));
+//            continue;
+//        }
+//        
+//
+//        AVFrame* frame = nullptr;
+//        bool isRenderingQEmpty = false;
+//
+//        {
+//            std::lock_guard<std::mutex> lock(this->renderingQmtx);
+//            
+//            isRenderingQEmpty = this->videoRenderingQueue.empty();
+//            if (isRenderingQEmpty == false)
+//            {
+//                frame = this->videoRenderingQueue.front();
+//                this->videoRenderingQueue.pop();
+//            }
+//        }
+//
+//        if (isRenderingQEmpty == true)
+//        {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        else
+//        {
+//            
+//            /*int a = frame->pict_type;
+//            printf("type : %ld\n", a);*/
+//
+//            //시간 측정
+//            //현재 시각
+//            //새로운 시작이면 ( pts가 0이면
+//                //현재 시각을 starttime으로 기록
+//                //현재 pts를 startPts으로 기록
+//            //진행 중이었으면
+//                //현재 시각과 startime의 차이 계산(시작 후 흐른 시간)
+//            //pts를 ms 단위로 변환
+//            int64_t timeSpent = 0;//시작 후 경과 시간
+//            auto now = std::chrono::steady_clock::now();
+//            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+//            if (this->isRenderStarted == false)
+//            {
+//                this->startPts_ms = frame->pts * videoTimeBase_ms;
+//                this->startTime_ms = now_ms;
+//                this->isRenderStarted = true;
+//            }
+//            else
+//            {
+//                timeSpent = now_ms - this->startTime_ms;
+//            }
+//            int64_t pts_ms = frame->pts * videoTimeBase_ms;
+//
+//            //pts 비교
+//            //목표 시간 보다 빠른 경우
+//                //기다렸다가 진행
+//            if (pts_ms - this->startPts_ms > timeSpent)
+//            {
+//                int64_t gap_ms = pts_ms - this->startPts_ms - timeSpent;
+//                std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
+//                
+//            }
+//
+//            //적정 시간 보다 느린 경우
+//                //몇 개나 패스해야할지 계산(계산 법 : 차이나는 시간 / 타임 베이스)
+//                //다음 프레임으로 패스
+//            else if (pts_ms - this->startPts_ms < timeSpent)
+//            {
+//                int64_t gap_ms = timeSpent - (pts_ms - this->startPts_ms);
+//                int numToPass = gap_ms / videoTimeBase_ms;
+//                if (numToPass > 0)
+//                {
+//                    //버퍼링 필요함
+//                    printf("으아으아\n");
+//                    continue;
+//                }
+//            }
+//            
+//            if (this->onVideoProgressCallback != nullptr)
+//            {
+//                this->progress_ms = pts_ms;
+//            }
+//
+//            AVFrame* afterConvertFrame;
+//            afterConvertFrame = av_frame_alloc();
+//            if (!afterConvertFrame) {
+//                fprintf(stderr, "새 프레임 할당 실패\n");
+//                continue;
+//            }
+//            //변환 프레임의 버퍼 할당
+//            if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, AV_PIX_FMT_RGB24, 1) < 0) {
+//                fprintf(stderr, "변환 프레임 버퍼 할당 실패\n");
+//                continue;
+//            }
+//            /*this->swsCtx = sws_getContext(
+//                this->width, this->height, this->pix_fmt,
+//                this->width, this->height, AV_PIX_FMT_RGB24,
+//                SWS_BILINEAR, NULL, NULL, NULL);
+//            if (!this->swsCtx) {
+//                fprintf(stderr, "이미지 포멧 변환 불가\n");
+//                continue;
+//            }*/
+//
+//
+//            // 변환 실행
+//            sws_scale(this->swsCtx,
+//                (const uint8_t* const*)frame->data, frame->linesize,
+//                0, frame->height,
+//                afterConvertFrame->data, afterConvertFrame->linesize);
+//
+//            //콜백 메서드 호출
+//            if (this->onImageDecodeCallback != nullptr)
+//            {
+//                this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+//            }
+//        }
+//    }
+//}
 
 
 
@@ -627,8 +814,65 @@ void Player::progressCheckingThreadTask()
     }
 }
 
-void Player::openFileStream() 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Player::openFileStream(const char* filePath, int* videoWidth, int* videoHeight)
 {
+    std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
+
+    if (filePath != nullptr)
+    {
+        this->inputFilename = filePath;
+    }
+
     int ret = 0;
 
     avformat_network_init();
@@ -711,92 +955,274 @@ void Player::openFileStream()
     this->width = this->video_dec_ctx->width;
     this->height = this->video_dec_ctx->height;
     this->pix_fmt = this->video_dec_ctx->pix_fmt;
+    *videoWidth = this->width;
+    *videoHeight = this->height;
 
     this->isFileStreamOpen = true;
 
     this->swsCtx = sws_getContext(
         this->width, this->height, this->pix_fmt,
-        this->width, this->height, AV_PIX_FMT_RGB24,
+        this->width, this->height, AV_PIX_FMT_RGB24 /*AV_PIX_FMT_RGB24*/, /*AV_PIX_FMT_RGBA*/
         SWS_BILINEAR, NULL, NULL, NULL);
+
+    int result = av_seek_frame(this->formatContext, video_stream_idx, 0, AVSEEK_FLAG_BACKWARD);
 }
 
 int Player::play()
 {
+    std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
+
     if (this->isPaused == true)
     {
-        this->isPaused = false;
-        return 0;
+        this->resume();
+    }
+    else
+    {
+        this->startReadThread();
+        this->startDecodeAndRenderThread();
     }
 
-    this->startReadThread();
-    /*this->startDecodeThread();
-    this->startRenderThread();*/
-    this->startDecodeAndRenderThread();
-
+    printf("play return\n");
     return 0;
 }
 
 int Player::pause()
 {
-    std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
+    std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
+
+    {
+        std::unique_lock<std::mutex> decodingPauseMutexLock(this->decodingPauseMutex);
+        this->isDecodingPaused = true;
+        this->decodingPauseCondVar.notify_all();
+        this->isWaitingAfterCommand = true;
+        this->decodingPauseCondVar.wait(decodingPauseMutexLock, [this] { return this->isWaitingAfterCommand == false; });
+    }
+
     this->isPaused = true;
+
+    if (this->onPauseCallbackFunction != nullptr)
+    {
+        this->onPauseCallbackFunction();
+    }
+
+    printf("pause return\n");
+
     return 0;
 }
 
 int Player::resume()
 {
-    std::lock_guard<std::mutex> pauseLock(this->pauseMtx);
+    this->isDecodingPaused = false;
+    this->decodingPauseCondVar.notify_all();
+
     this->isPaused = false;
+
+    if (this->onResumeCallbackFunction != nullptr)
+    {
+        this->onResumeCallbackFunction();
+    }
+
+    printf("resume return\n");
+
     return 0;
 }
 
 int Player::stop()
 {
+    std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
+
+    //디코딩 쓰레드 종료
+    this->endOfDecoding = true;
+    this->bufferCondVar.notify_all();
+    this->decodingPauseCondVar.notify_all();
+    if (this->decodeAndRenderThread != nullptr && 
+        this->decodeAndRenderThread->joinable() == true)
+    {
+        this->decodeAndRenderThread->join();
+    }
+
+    //리딩 쓰레드 종료
+    this->isReading = false;
+    this->bufferCondVar.notify_all();
+    this->readingPauseCondVar.notify_all();
+    if (this->readThread != nullptr && 
+        this->readThread->joinable() == true)
+    {
+        this->readThread->join();
+    }
+
+    //패킷버퍼 clear
+    {
+        std::unique_lock<std::mutex> lock(bufferMutex);
+        while (!this->packetBuffer.empty())
+        {
+            this->packetBuffer.pop();
+        }
+    }
+
+    if (this->formatContext != nullptr)
+    {
+        avformat_close_input(&this->formatContext);
+    }
+
+    //플래그 변수 초기화
+    this->isDecodingPaused = false;
+    this->isReadingPaused = false;
+    this->isPaused = false;
+    this->isWaitingAfterCommand = false;
+    this->endOfDecoding = false;
+    this->isReading = true;
+
+    //콜백 호출
+    if (this->onStopCallbackFunction != nullptr)
+    {
+        this->onStopCallbackFunction();
+    }
+    printf("stop return\n");
 
     return 0;
 }
 
-int Player::JumpPlayTime(double seekPercent)
+
+int Player::jumpPlayTime(double seekPercent)
 {
-    int64_t seekTime_ms = duration_ms * seekPercent / 100;
-    int64_t seekTime_s = seekTime_ms / 1000.0;
+    std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
 
-    double timebase = av_q2d(this->videoTimeBase);
-    int64_t valuePerOneSec = 1 / timebase;
-    int64_t seekTimeStamp = valuePerOneSec* seekTime_s;
-    
-    this->monitor_forReadingThreadEnd.requestHoldAndWait();
-    this->monitor_forDecodingThreadEnd.requestHoldAndWait();
-    this->monitor_forRenderingThreadEnd.requestHoldAndWait();
-
-    //큐 비우기
+    if (duration_ms == 0)
     {
-        std::lock_guard<std::mutex> decodingQLock(this->decodingQmtx);
-        std::lock_guard<std::mutex> renderingQLock(this->renderingQmtx);
-
-        while (this->decodingQueue.empty() == false)
-        {
-            this->decodingQueue.pop();
-        }
-
-        while (this->videoRenderingQueue.empty() == false)
-        {
-            this->videoRenderingQueue.pop();
-        }
+        return -1;
     }
 
-    printf("큐 정리 decQ:%ld   rndrQ:%ld \n", (long)this->decodingQueue.size(), (long)this->videoRenderingQueue.size());
+    double timebase_ms = av_q2d(this->videoTimeBase) * 1000;
+    int64_t seekTime_ms = duration_ms * seekPercent / 100;
+    int64_t seekTimeStamp = seekTime_ms / timebase_ms;
 
-    int64_t timestamp = 1 * AV_TIME_BASE;
-    //비디오 스트림 상에서 재생위치 이동
-    printf("seek : %ld", seekTime_ms);
-    int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
+    if (this->isPaused == true)
+    {
+        //리드쓰레드 일시정지
+        {
+            std::unique_lock<std::mutex> readingMutexLock(this->readingPauseMutex);
+            this->isReadingPaused = true;
+            this->readingPauseCondVar.notify_all();
+            this->bufferCondVar.notify_all();
+            this->isWaitingAfterCommand = true;
+            this->readingPauseCondVar.wait(readingMutexLock, [this] { return this->isWaitingAfterCommand == false; });
+        }
 
-    this->isRenderStarted = false;
+        //패킷버퍼 clear
+        {
+            std::unique_lock<std::mutex> lock(bufferMutex);
+            while (!this->packetBuffer.empty())
+            {
+                this->packetBuffer.pop();
+            }
+        }
 
-    this->monitor_forReadingThreadEnd.notify();
-    this->monitor_forDecodingThreadEnd.notify();
-    this->monitor_forRenderingThreadEnd.notify();
+        //SEEK 명령
+        int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
+
+        //리드 쓰레드 재개
+        this->isReadingPaused = false;
+        this->readingPauseCondVar.notify_all();
+
+    }
+    else
+    {
+        if (this->decodeAndRenderThread->joinable() == false || this->readThread->joinable() == false)
+        {
+            return -1;
+        }
+
+
+        //디코드,랜더 쓰레드 일시 정지
+        {
+            std::unique_lock<std::mutex> decodingPauseMutexLock(this->decodingPauseMutex);
+            this->isDecodingPaused = true;
+            this->decodingPauseCondVar.notify_all();
+            this->isWaitingAfterCommand = true;
+            this->decodingPauseCondVar.wait(decodingPauseMutexLock, [this] { return this->isWaitingAfterCommand == false; });
+        }
+
+        //리드 쓰레드 일시 정지
+        {
+            std::unique_lock<std::mutex> readingMutexLock(this->readingPauseMutex);
+            this->isReadingPaused = true;
+            this->readingPauseCondVar.notify_all();
+            this->bufferCondVar.notify_all();
+            this->isWaitingAfterCommand = true;
+            this->readingPauseCondVar.wait(readingMutexLock, [this] { return this->isWaitingAfterCommand == false; });
+        }
+
+        //패킷버퍼 clear
+        {
+            std::unique_lock<std::mutex> lock(bufferMutex);
+            while (!this->packetBuffer.empty())
+            {
+                this->packetBuffer.pop();
+            }
+        }
+
+        //SEEK 명령
+        int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
+
+        //리드 쓰레드 재개
+        this->isReadingPaused = false;
+        this->readingPauseCondVar.notify_all();
+
+        //디코드,랜더 쓰레드 재개
+        this->isDecodingPaused = false;
+        this->decodingPauseCondVar.notify_all();
+        this->isPaused = false;
+    }
+
+
+    return 0;
+}
+
+
+int Player::decode_packet(AVCodecContext* decoderCtx, const AVPacket* pkt)
+{
+    int ret = 0;
+
+    // submit the packet to the decoder
+    ret = avcodec_send_packet(decoderCtx, pkt);
+    if (ret < 0) {
+        fprintf(stderr, "Error submitting a packet for decoding\n");
+        return ret;
+    }
+
+    // get all the available frames from the decoder
+    while (ret >= 0) {
+        AVFrame* frame;
+        frame = av_frame_alloc();
+
+        ret = avcodec_receive_frame(decoderCtx, frame);
+        if (ret < 0) {
+            // those two return values are special and mean there is no output
+            // frame available, but there were no errors during decoding
+            if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
+                return 0;
+
+            fprintf(stderr, "Error during decoding\n");
+            return ret;
+        }
+
+        // write the frame data to output file
+        if (decoderCtx->codec->type == AVMEDIA_TYPE_VIDEO)
+        {
+            //ret = output_video_frame(frame);
+            //TODO : 버퍼에 삽입
+        }
+        else
+        {
+            //ret = output_audio_frame(frame);
+        }
+
+        av_frame_unref(frame);
+        if (ret < 0)
+            return ret;
+    }
+
     return 0;
 }
 
@@ -838,4 +1264,125 @@ void Player::RegisterOnPauseCallback(OnPauseCallbackFunction callback)
 void Player::RegisterOnResumeCallback(OnResumeCallbackFunction callback)
 {
     this->onResumeCallbackFunction = callback;
+}
+
+void Player::RegisterOnStopCallback(OnStopCallbackFunction callback)
+{
+    this->onStopCallbackFunction = callback;
+}
+
+void Player::RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
+{
+    this->onRenderTimingCallbackFunction = callback;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool Player::CreateVideoDx11RenderScreen(HWND hwnd, int videoWidth, int videoHeight)
+{
+    this->directx11Renderer = new DirectX11Renderer(hwnd);
+    if (this->directx11Renderer->Init(videoWidth, videoHeight) == false)
+    {
+        delete this->directx11Renderer;
+        return false;
+    }
+
+}
+
+
+void Player::DrawDirectXTestRectangle()
+{
+    if (this->directx11Renderer == nullptr)
+    {
+        return;
+    }
+    this->directx11Renderer->Render();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Player::Cleanup() {
+    if (video_dec_ctx) avcodec_free_context(&video_dec_ctx);
+    if (formatContext) avformat_close_input(&formatContext);
+    if (swsCtx) sws_freeContext(swsCtx);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Player::Player() {
+    
 }

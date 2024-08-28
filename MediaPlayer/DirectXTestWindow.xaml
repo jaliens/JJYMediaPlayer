@@ -1,0 +1,23 @@
+﻿<customcontrol:WindowBasic 
+    x:Class="MediaPlayer.DirectXTestWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:MediaPlayer"
+    xmlns:customcontrol="clr-namespace:Common.CustomControl;assembly=Common" 
+    xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+    xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+    mc:Ignorable="d"
+    WindowStyle="None"
+    Height="500"
+    Width="800"
+    Style="{StaticResource winStyle}"
+    Title="DirectXTestWindow">
+    <Grid x:Name="topGrid">
+        <!--<wfi:WindowsFormsHost x:Name="winFormsHost" Height="500" Width="800" Background="Gray">
+            <wf:PictureBox x:Name="pictbx" Height="500" Width="800" BackColor="#00000000" />
+        </wfi:WindowsFormsHost>-->
+        <!--<local:DirectXHost x:Name="directXHost" Width="800" Height="600"/>-->
+    </Grid>
+</customcontrol:WindowBasic>

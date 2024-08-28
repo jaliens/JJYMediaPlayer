@@ -71,7 +71,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LibraryPath>$(ProjectDir)ffmpeg\bin;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(ProjectDir)ffmpeg\bin;$(ProjectDir)directX9\lib;$(ProjectDir)directX11\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)ffmpeg\include;$(ProjectDir)directX9\include;$(ProjectDir)directX11\include;$(IncludePath)</IncludePath>
+    <ReferencePath>C:\Windows\Microsoft.NET\Framework\v4.0.30319;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -115,18 +117,26 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)ffmpeg\include;$(SolutionDir)SDL2-2.30.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ffmpeg\include;$(SolutionDir)SDL2-2.30.1\include;$(ProjectDir)directX9\include;$(ProjectDir)directX11\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAsManaged>false</CompileAsManaged>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>avcodec.lib;avdevice.lib;avfilter.lib;avformat.lib;avutil.lib;postproc.lib;swresample.lib;swscale.lib;SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)ffmpeg\bin;$(SolutionDir)SDL2-2.30.1\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>avcodec.lib;avdevice.lib;avfilter.lib;avformat.lib;avutil.lib;postproc.lib;swresample.lib;swscale.lib;SDL2.lib;SDL2main.lib;d3d9.lib;d3dx9.lib;dxguid.lib;d3dx9d.lib;user32.lib;gdi32.lib;kernel32.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)ffmpeg\bin;$(SolutionDir)SDL2-2.30.1\lib\x64;$(ProjectDir)directX9\lib;$(ProjectDir)directX11\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(TargetDir)*.*" "$(SolutionDir)MediaPlayer\bin\Debug\net6.0-windows\"</Command>
+      <Command>xcopy /Y /D "$(TargetDir)*.*" "$(SolutionDir)MediaPlayer\bin\Debug\net6.0-windows\"
+xcopy /Y /D "$(TargetDir)*.*" "$(SolutionDir)MediaPlayer\bin\Debug\net8.0-windows7.0\"</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>xcopy /Y /E "$(ProjectDir)shaders\*" "$(TargetDir)\"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -148,6 +158,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="DirectX11Renderer.h" />
+    <ClInclude Include="DirectX9Renderer.h" />
     <ClInclude Include="FixedMemQueue.h" />
     <ClInclude Include="FixedQueue.h" />
     <ClInclude Include="framework.h" />
@@ -156,6 +168,8 @@
     <ClInclude Include="Player.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="DirectX11Renderer.cpp" />
+    <ClCompile Include="DirectX9Renderer.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="FixedMemQueue.cpp" />
     <ClCompile Include="Monitor.cpp" />
@@ -166,6 +180,12 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Player.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\PixelShader.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\VertexShader.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

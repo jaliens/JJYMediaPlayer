@@ -1,10 +1,10 @@
 ﻿// dllmain.cpp : DLL 애플리케이션의 진입점을 정의합니다.
+#pragma once
 #include "pch.h"
 
 #include <iostream>
 #include <chrono>
 #include <thread>
-
 //#include "SDL.h"
 
 #pragma comment(lib, "SDL2main.lib")
@@ -28,6 +28,10 @@ extern "C" {
 }
 
 #include "Player.h"
+
+#include "DirectX9Renderer.h"
+#include "DirectX11Renderer.h"
+
 
 #define INBUF_SIZE 4096
 
@@ -57,15 +61,36 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     return TRUE;
 }
 
-// 콜백 함수 등록
-extern "C" __declspec(dllexport) void CreatePlayer()
+
+extern "C" __declspec(dllexport) bool CreatePlayer()
 {
     if (player == nullptr)
     {
         player = new Player();
+
+        //return player->CreateVideoDx11RenderScreen(hWnd);
+        return true;
+    }
+    else
+    {
+        return false;
     }
 }
 
+extern "C" __declspec(dllexport) bool CreateDx11RenderScreenOnPlayer(HWND hWnd, int videoWidth, int videoHeight)
+{
+    if (player == nullptr)
+    {
+        return false;
+    }
+    else
+    {
+        return player->CreateVideoDx11RenderScreen(hWnd, videoWidth, videoHeight);
+    }
+}
+
+
+// 콜백 함수 등록
 extern "C" __declspec(dllexport) void RegisterOnImgDecodeCallback(OnImgDecodeCallbackFunction callback) 
 {
     player->RegisterOnImageDecodeCallback(callback);
@@ -106,9 +131,31 @@ extern "C" __declspec(dllexport) void RegisterOnResumeCallback(OnResumeCallbackF
     player->RegisterOnResumeCallback(callback);
 }
 
+extern "C" __declspec(dllexport) void RegisterOnStopCallback(OnStopCallbackFunction callback)
+{
+    player->RegisterOnStopCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
+{
+    player->RegisterOnRenderTimingCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void Cleanup()
+{
+    player->Cleanup();
+}
 
 
 
+
+
+extern "C" __declspec(dllexport) void RenderTestRectangleDx11() {
+    if (player == nullptr) {
+        return;
+    }
+    player->DrawDirectXTestRectangle();
+}
 
 
 
@@ -133,10 +180,39 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 
 
 
+extern "C" {
+    __declspec(dllexport) DirectX9Renderer* CreateRenderer_DX9(HWND hwnd) {
+        auto renderer = new DirectX9Renderer(hwnd);
+        if (!renderer->Init()) {
+            delete renderer;
+            return nullptr;
+        }
+        return renderer;
+    }
 
+    __declspec(dllexport) void DestroyRenderer_DX9(DirectX9Renderer* renderer) {
+        delete renderer;
+    }
 
+    __declspec(dllexport) void RenderRectangle_DX9(DirectX9Renderer* renderer) {
+        if (renderer) {
+            renderer->RenderRectangle();
+        }
+    }
 
+    __declspec(dllexport) void RenderAVFrame_DX9(DirectX9Renderer* renderer, AVFrame* frame) {
+        if (renderer) {
+            renderer->RenderAVFrame(frame);
+        }
+    }
 
+    __declspec(dllexport) IDirect3DSurface9* GetSurface_DX9(DirectX9Renderer* renderer) {
+        if (renderer) {
+            return renderer->GetSurface();
+        }
+        return nullptr;
+    }
+}
 
 
 
@@ -219,14 +295,14 @@ extern "C" __declspec(dllexport) int Add(int a, int b) {
 /// <summary>
 /// 파일 스트림 열기
 /// </summary>
-extern "C" __declspec(dllexport) void OpenFileStream()
+extern "C" __declspec(dllexport) void OpenFileStream(const char* filePath, int* videoWidth, int* videoHeight)
 {
     if (player == nullptr)
     {
         return;
     }
 
-    player->openFileStream();
+    player->openFileStream(filePath, videoWidth, videoHeight);
 
     return;
 }
@@ -283,7 +359,7 @@ extern "C" __declspec(dllexport) void Stop()
 extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
 {
 
-    player->JumpPlayTime(targetPercent);
+    player->jumpPlayTime(targetPercent);
 
     return;
 }
