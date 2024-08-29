@@ -48,9 +48,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout_ = nullptr;//정점 데이터의 구조 정의
     Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer_ = nullptr;//정점 데이터를 GPU로 전달하는 버퍼
     Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_ = nullptr;//텍스쳐 샘플러 상태
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> textureView_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderResourceView_texture = nullptr;//셰이더 리소스 뷰(셰이더에서 텍스쳐를 사용할 수 있게 됨)
     Microsoft::WRL::ComPtr<ID3D11Texture2D> texture_ = nullptr;
-    SwsContext* swsContext_ = nullptr;
+    SwsContext* swsContext_ = nullptr;//이미지 포멧 변환
     int videoWidth_ = 0;
     int videoHeight_ = 0;
 };

@@ -233,54 +233,66 @@ bool DirectX11Renderer::InitPipeline() {
     return true;
 }
 
-bool DirectX11Renderer::InitTexture(int width, int height, AVPixelFormat format) {
-    if (texture_) {
-        texture_.Reset();
-        textureView_.Reset();
+bool DirectX11Renderer::InitTexture(int srcWidth, int srcHeight, AVPixelFormat srcFormat) {
+    if (this->texture_) {
+        this->texture_.Reset();
+        this->shaderResourceView_texture.Reset();
     }
 
-    videoWidth_ = width;
-    videoHeight_ = height;
+    this->videoWidth_ = srcWidth;
+    this->videoHeight_ = srcHeight;
 
-    DXGI_FORMAT dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM; // 기본값으로 설정
+    // 텍스쳐 포멧
+    DXGI_FORMAT dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     // FFmpeg 포맷을 DXGI 포맷으로 변환
-    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24) {
+    if (srcFormat == AV_PIX_FMT_RGB24 || srcFormat == AV_PIX_FMT_BGR24) 
+    {
         dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
-    else if (format == AV_PIX_FMT_YUV420P) {
+    else if (srcFormat == AV_PIX_FMT_YUV420P) 
+    {
         // YUV420P를 RGB로 변환하기 위해 기본 RGB 포맷 사용
         dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
     else {
         // 기본적으로 지원하지 않는 포맷에 대한 변환을 위해 SwsContext 설정
         dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-        if (!swsContext_) {
-            swsContext_ = sws_getContext(width, height, format, width, height, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
-            if (!swsContext_) return false;
+        if (!this->swsContext_) 
+        {
+            this->swsContext_ = sws_getContext(srcWidth, srcHeight, srcFormat, srcWidth, srcHeight, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
+            if (!this->swsContext_)
+            {
+                return false;
+            }
         }
     }
 
+    //2D 텍스쳐 속성 정의
     D3D11_TEXTURE2D_DESC texDesc = {};
-    texDesc.Width = width;
-    texDesc.Height = height;
-    texDesc.MipLevels = 1;
-    texDesc.ArraySize = 1;
+    texDesc.Width = srcWidth;
+    texDesc.Height = srcHeight;
+    texDesc.MipLevels = 1; // 1:mipmap 사용 안함
+    texDesc.ArraySize = 1; // 1:배열 텍스쳐가 아닌 단일 텍스쳐를 의미
     texDesc.Format = dxgiFormat;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.Usage = D3D11_USAGE_DYNAMIC;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    texDesc.SampleDesc.Count = 1; // 1:멀티샘플링 안씀
+    texDesc.Usage = D3D11_USAGE_DYNAMIC; // CPU와 GPU 모두 접근 가능하도록
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE; // 이 텍스쳐가 셰이더에서 사용될 것임
+    texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // CPU에게 쓰기 권한 줌
 
-    HRESULT hr = device_->CreateTexture2D(&texDesc, nullptr, &texture_);
+    // GPU에 2D텍스쳐 생성
+    HRESULT hr = this->device_->CreateTexture2D(&texDesc, nullptr, &this->texture_);
     if (FAILED(hr)) return false;
 
+    // 셰이더 리소스뷰 : 셰이더가 텍스쳐, 버퍼 등에 접근할 수 있도록하는 인터페이스
+    // 셰이더 리소스뷰 속성 정의
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = texDesc.Format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
 
-    hr = device_->CreateShaderResourceView(texture_.Get(), &srvDesc, &textureView_);
+    // 셰이더 리소스뷰 생성(픽셀 셰이더에서 텍스쳐를 샘플링하는데 사용됨)
+    hr = this->device_->CreateShaderResourceView(this->texture_.Get(), &srvDesc, &this->shaderResourceView_texture);
     if (FAILED(hr)) return false;
 
     return true;
@@ -288,9 +300,9 @@ bool DirectX11Renderer::InitTexture(int width, int height, AVPixelFormat format)
 
 void DirectX11Renderer::Render() {
     const float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };//화면 지우면서 채울 색상
-    context_->ClearRenderTargetView(renderTargetView_.Get(), clearColor);//화면 지우기
-    context_->Draw(3, 0);//백버퍼에 랜더링 수행
-    HRESULT hr = swapChain_->Present(1, 0); //백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
+    this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);//화면 지우기
+    this->context_->Draw(3, 0);//백버퍼에 랜더링 수행
+    HRESULT hr = this->swapChain_->Present(1, 0); //백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
     if (FAILED(hr))
     {
         printf("실패\n");
@@ -301,16 +313,21 @@ void DirectX11Renderer::Render(AVFrame* frame) {
     if (!frame) return;
 
     AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    if (frame->width != videoWidth_ || frame->height != videoHeight_ || !texture_) {
+    if (frame->width != this->videoWidth_ || 
+        frame->height != this->videoHeight_ || 
+        this->texture_ == nullptr) 
+    {
         InitTexture(frame->width, frame->height, format);
     }
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
-    context_->Map(texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    // Map함수 : GPU 메모리의 텍스쳐를 CPU가 수정할 수 있게 해줌
+    this->context_->Map(this->texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 
-    uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);
-    int destPitch = mappedResource.RowPitch;
+    uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);// 텍스쳐 데이터 포인터
+    int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄이 차지하는 바이트 수
 
+    // 비디오 프레임을 텍스쳐에 복사
     if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24) {
         // RGB 또는 BGR 포맷을 RGBA로 변환
         for (int y = 0; y < frame->height; y++) {
@@ -362,16 +379,21 @@ void DirectX11Renderer::Render(AVFrame* frame) {
         sws_scale(swsContext_, frame->data, frame->linesize, 0, frame->height, destData, destLinesize);
     }
 
-    context_->Unmap(texture_.Get(), 0);
+    // Unmap : 다시 GPU에게 텍스쳐 사용권 넘김
+    this->context_->Unmap(this->texture_.Get(), 0);
 
+    // 화면(백버퍼) 지우기(초기화)
     const float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    context_->ClearRenderTargetView(renderTargetView_.Get(), clearColor);//화면 지우기
+    this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);
 
-    context_->PSSetShaderResources(0, 1, textureView_.GetAddressOf());
-    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    // 텍스쳐를 픽셀셰이더에 바인딩
+    this->context_->PSSetShaderResources(0, 1, this->shaderResourceView_texture.GetAddressOf());
 
-    context_->Draw(4, 0);//백버퍼에 랜더링 수행
-    swapChain_->Present(1, 0);//백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
+    // 텍스쳐 샘플링에 사용할 샘플러 상태 설정
+    this->context_->PSSetSamplers(0, 1, this->sampler_.GetAddressOf());
+
+    this->context_->Draw(4, 0);//백버퍼에 랜더링 수행
+    this->swapChain_->Present(1, 0);//백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
 }
 
 
