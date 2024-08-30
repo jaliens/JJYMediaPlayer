@@ -172,15 +172,15 @@ bool DirectX11Renderer::InitPipeline() {
     if (FAILED(hr)) return false;
 
     // 버텍스 셰이더 생성
-    hr = device_->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vertexShader_);
+    hr = this->device_->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &this->vertexShader_);
     if (FAILED(hr)) return false;
 
     // 픽셀 셰이더 생성
-    hr = device_->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &pixelShader_);
+    hr = this->device_->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &this->pixelShader_);
     if (FAILED(hr)) return false;
 
-    context_->VSSetShader(vertexShader_.Get(), nullptr, 0);// 버텍스 셰이더 설정
-    context_->PSSetShader(pixelShader_.Get(), nullptr, 0);// 픽세 셰이더 설정
+    this->context_->VSSetShader(this->vertexShader_.Get(), nullptr, 0);// 버텍스 셰이더 설정
+    this->context_->PSSetShader(this->pixelShader_.Get(), nullptr, 0);// 픽세 셰이더 설정
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -188,11 +188,11 @@ bool DirectX11Renderer::InitPipeline() {
     };
 
     // 위에서 정의한 입력 레이아웃을 GPU에 로드하여 사용 가능하도록 생성.
-    hr = device_->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &inputLayout_);
+    hr = this->device_->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &this->inputLayout_);
     if (FAILED(hr)) return false;
 
     // 만들어진 입력 레이아웃을 설정.
-    context_->IASetInputLayout(inputLayout_.Get());
+    this->context_->IASetInputLayout(inputLayout_.Get());
 
     std::vector<Vertex> vertices = {
         { XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
@@ -210,13 +210,13 @@ bool DirectX11Renderer::InitPipeline() {
     D3D11_SUBRESOURCE_DATA initData = {};// 초기 데이터로 채울 버퍼
     initData.pSysMem = vertices.data();// 초기 데이터가 저장된 메모리의 포인터 전달
 
-    hr = device_->CreateBuffer(&bd, &initData, &vertexBuffer_);// 버텍스 버퍼 생성(정점 데이터를 GPU에 전달할 때 사용됨)
+    hr = device_->CreateBuffer(&bd, &initData, &this->vertexBuffer_);// 버텍스 버퍼 생성(정점 데이터를 GPU에 전달할 때 사용됨)
     if (FAILED(hr)) return false;
 
     UINT stride = sizeof(Vertex);// 각 정점의 크기
     UINT offset = 0;// 버퍼 내에서 읽기 오프셋(0: 처음 부터 읽는다는 의미)
-    context_->IASetVertexBuffers(0, 1/*버퍼 개수*/, vertexBuffer_.GetAddressOf(), &stride, &offset);// 버텍스 버퍼 설정
-    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);// GPU가 정점을 해석하는 방식 설정
+    this->context_->IASetVertexBuffers(0, 1/*버퍼 개수*/, this->vertexBuffer_.GetAddressOf(), &stride, &offset);// 버텍스 버퍼 설정
+    this->context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);// GPU가 정점을 해석하는 방식 설정
     
     // 텍스쳐 샘플링 설정
     D3D11_SAMPLER_DESC sampDesc = {};
@@ -227,7 +227,7 @@ bool DirectX11Renderer::InitPipeline() {
     sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;// 샘플링된 텍스쳐 값과 레퍼런스 값을 비교 안 함
     sampDesc.MinLOD = 0;
     sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-    hr = device_->CreateSamplerState(&sampDesc, &sampler_);
+    hr = this->device_->CreateSamplerState(&sampDesc, &this->sampler_);
     if (FAILED(hr)) return false;
     
     return true;
@@ -298,7 +298,7 @@ bool DirectX11Renderer::InitTexture(int srcWidth, int srcHeight, AVPixelFormat s
     return true;
 }
 
-void DirectX11Renderer::Render() {
+void DirectX11Renderer::RenderEmptyRect() {
     const float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };//화면 지우면서 채울 색상
     this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);//화면 지우기
     this->context_->Draw(3, 0);//백버퍼에 랜더링 수행
@@ -309,9 +309,12 @@ void DirectX11Renderer::Render() {
     }
 }
 
+/// <summary>
+/// AVFrame을 DirectX11로 화면에 랜더링
+/// </summary>
+/// <param name="frame"></param>
 void DirectX11Renderer::Render(AVFrame* frame) {
     if (!frame) return;
-
     AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
     if (frame->width != this->videoWidth_ || 
         frame->height != this->videoHeight_ || 
@@ -325,25 +328,54 @@ void DirectX11Renderer::Render(AVFrame* frame) {
     this->context_->Map(this->texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 
     uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);// 텍스쳐 데이터 포인터
-    int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄이 차지하는 바이트 수
+    int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄(행)이 차지하는 바이트 수
 
     // 비디오 프레임을 텍스쳐에 복사
     if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24) {
         // RGB 또는 BGR 포맷을 RGBA로 변환
-        for (int y = 0; y < frame->height; y++) {
-            uint8_t* src = frame->data[0] + y * frame->linesize[0];
-            for (int x = 0; x < frame->width; x++) {
-                dest[y * destPitch + x * 4 + 0] = src[x * 3 + (format == AV_PIX_FMT_RGB24 ? 0 : 2)]; // R
-                dest[y * destPitch + x * 4 + 1] = src[x * 3 + 1]; // G
-                dest[y * destPitch + x * 4 + 2] = src[x * 3 + (format == AV_PIX_FMT_RGB24 ? 2 : 0)]; // B
-                dest[y * destPitch + x * 4 + 3] = 255; // A
+        for (int y = 0; y < frame->height; y++) 
+        {
+            uint8_t* src = frame->data[0];
+            for (int x = 0; x < frame->width; x++) 
+            {
+                if (format == AV_PIX_FMT_RGB24)
+                {
+                    dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 0];
+                    dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
+                    dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 2];
+                    dest[y * destPitch + x * 4 + 3] = 255;
+                }
+                else if(format == AV_PIX_FMT_RGB24)
+                {
+                    dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 2];
+                    dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
+                    dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 0];
+                    dest[y * destPitch + x * 4 + 3] = 255;
+                }
             }
         }
     }
-    else if (format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA) {
-        // 이미 RGBA 또는 BGRA 형식인 경우
-        for (int y = 0; y < frame->height; y++) {
-            memcpy(dest + y * destPitch, frame->data[0] + y * frame->linesize[0], frame->width * 4);
+    else if (format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA) 
+    {
+        for (int y = 0; y < frame->height; y++) 
+        {
+            // 이미 RGBA이면 그대로 복사
+            if (format == AV_PIX_FMT_RGBA)
+            {
+                memcpy(dest + y * destPitch, frame->data[0] + y * frame->linesize[0], frame->width * 4);
+            }
+            // 이미 BGRA이면 RGBA로 순서 변환
+            else if (format == AV_PIX_FMT_BGRA)
+            {
+                uint8_t* src = frame->data[0];
+                for (int x = 0; x < frame->width; x++)
+                {
+                    dest[y * destPitch + x * 4 + 0] = src[y * destPitch + x * 4 + 2];
+                    dest[y * destPitch + x * 4 + 1] = src[y * destPitch + x * 4 + 1];
+                    dest[y * destPitch + x * 4 + 2] = src[y * destPitch + x * 4 + 0];
+                    dest[y * destPitch + x * 4 + 3] = src[y * destPitch + x * 4 + 3];
+                }
+            }
         }
     }
     else if (format == AV_PIX_FMT_YUV420P) {
@@ -351,11 +383,13 @@ void DirectX11Renderer::Render(AVFrame* frame) {
         uint8_t* srcY = frame->data[0];
         uint8_t* srcU = frame->data[1];
         uint8_t* srcV = frame->data[2];
-        for (int y = 0; y < frame->height; y++) {
-            for (int x = 0; x < frame->width; x++) {
-                int Y = srcY[y * frame->linesize[0] + x];
-                int U = srcU[(y / 2) * frame->linesize[1] + (x / 2)];
-                int V = srcV[(y / 2) * frame->linesize[2] + (x / 2)];
+        for (int y = 0; y < frame->height; y++) 
+        {
+            for (int x = 0; x < frame->width; x++) 
+            {
+                int Y = srcY[y * frame->linesize[0] + x]; //Y는 픽셀 4개 당 4개
+                int U = srcU[(y / 2) * frame->linesize[1] + (x / 2)]; //U는 픽셀 4개(2x2) 당 1개
+                int V = srcV[(y / 2) * frame->linesize[2] + (x / 2)]; //V는 픽셀 4개(2x2) 당 1개
 
                 int R = Y + 1.402 * (V - 128);
                 int G = Y - 0.344 * (U - 128) - 0.714 * (V - 128);
@@ -376,7 +410,7 @@ void DirectX11Renderer::Render(AVFrame* frame) {
         // SwsContext를 사용하여 다른 포맷을 RGBA로 변환
         uint8_t* destData[4] = { dest, nullptr, nullptr, nullptr };
         int destLinesize[4] = { destPitch, 0, 0, 0 };
-        sws_scale(swsContext_, frame->data, frame->linesize, 0, frame->height, destData, destLinesize);
+        sws_scale(this->swsContext_, frame->data, frame->linesize, 0, frame->height, destData, destLinesize);
     }
 
     // Unmap : 다시 GPU에게 텍스쳐 사용권 넘김
@@ -392,6 +426,55 @@ void DirectX11Renderer::Render(AVFrame* frame) {
     // 텍스쳐 샘플링에 사용할 샘플러 상태 설정
     this->context_->PSSetSamplers(0, 1, this->sampler_.GetAddressOf());
 
+    this->context_->Draw(4, 0);// 백버퍼에 랜더링 수행
+    this->swapChain_->Present(1, 0);// 백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
+}
+
+/// <summary>
+/// 화면에 검은 텍스쳐를 표시
+/// </summary>
+void DirectX11Renderer::ClearScreen() {
+
+    if (this->videoWidth_ == 0 ||
+        this->videoHeight_ == 0 ||
+        this->texture_ == nullptr)
+        return;
+
+    bool res = this->InitTexture(this->videoWidth_, this->videoHeight_, AV_PIX_FMT_RGB24);
+    if (res == false) return;
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    // Map함수 : GPU 메모리의 텍스쳐를 CPU가 수정할 수 있게 해줌
+    this->context_->Map(this->texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+
+    uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);// 텍스쳐 데이터 포인터
+    int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄(행)이 차지하는 바이트 수
+
+    // 텍스쳐를 검은색으로
+    for (int y = 0; y < this->videoHeight_; y++)
+    {
+        for (int x = 0; x < this->videoWidth_; x++)
+        {
+            dest[y * destPitch + x * 4 + 0] = 0;
+            dest[y * destPitch + x * 4 + 1] = 0;
+            dest[y * destPitch + x * 4 + 2] = 0;
+            dest[y * destPitch + x * 4 + 3] = 255;
+        }
+    }
+
+    // Unmap : 다시 GPU에게 텍스쳐 사용권 넘김
+    this->context_->Unmap(this->texture_.Get(), 0);
+
+    // 화면(백버퍼) 지우기(초기화)
+    const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);
+
+    // 텍스쳐를 픽셀셰이더에 바인딩
+    this->context_->PSSetShaderResources(0, 1, this->shaderResourceView_texture.GetAddressOf());
+
+    // 텍스쳐 샘플링에 사용할 샘플러 상태 설정
+    this->context_->PSSetSamplers(0, 1, this->sampler_.GetAddressOf());
+
     this->context_->Draw(4, 0);//백버퍼에 랜더링 수행
     this->swapChain_->Present(1, 0);//백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
 }
@@ -399,8 +482,6 @@ void DirectX11Renderer::Render(AVFrame* frame) {
 
 
 
-
-//
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
     case WM_DESTROY:
@@ -409,7 +490,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
-//
+
 extern "C" __declspec(dllexport) HWND CreateDirectXWindow(HINSTANCE hInstance, int width, int height, HWND parentHwnd) {
     // 윈도우 클래스 등록
     const wchar_t CLASS_NAME[] = L"Window Class";

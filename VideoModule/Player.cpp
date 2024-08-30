@@ -396,17 +396,14 @@ void Player::videoDecodeAndRenderThreadTask()
                 av_packet_unref(packet);
                 av_packet_free(&packet);
                 fprintf(stderr, "   마지막 마지막 마지막 마지막 패킷\n");
+                this->directx11Renderer->ClearScreen();
 
                 this->endOfDecoding = true;
-                //종료0
 
                 auto t = new std::thread([this]() {
                     this->stop();
                     });
 
-                /*std::async(std::launch::async, [this]() {
-                    this->stop();
-                });*/
                 fprintf(stderr, "   end\n");
                 fprintf(stderr, "   end\n");
                 break;
@@ -492,7 +489,6 @@ void Player::videoDecodeAndRenderThreadTask()
 
                         ////directX11 랜더링
                         this->directx11Renderer->Render(frame);
-                        //this->directx11Renderer->Render();
 
 
 
@@ -1333,7 +1329,7 @@ void Player::DrawDirectXTestRectangle()
     {
         return;
     }
-    this->directx11Renderer->Render();
+    this->directx11Renderer->RenderEmptyRect();
 }
 
 

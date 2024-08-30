@@ -29,8 +29,9 @@ public:
     DirectX11Renderer(HWND hwnd);
     ~DirectX11Renderer();
     bool Init(int videoWidth, int videoHeight);
-    void Render();
+    void RenderEmptyRect();
     void Render(AVFrame* frame);
+    void ClearScreen();
 
 private:
     bool InitDeviceAndSwapChain();
