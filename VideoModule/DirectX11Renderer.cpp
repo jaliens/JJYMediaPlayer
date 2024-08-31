@@ -19,8 +19,7 @@ DirectX11Renderer::DirectX11Renderer(HWND hwnd)
     : hwnd_(hwnd) {}
 
 DirectX11Renderer::~DirectX11Renderer() {
-    if (context_) context_->ClearState();
-    if (swsContext_) sws_freeContext(swsContext_);
+    this->Cleanup();
 }
 
 
@@ -75,10 +74,10 @@ bool DirectX11Renderer::InitDeviceAndSwapChain() {
         2, //기능 레벨 개수 지정
         D3D11_SDK_VERSION, //sdk 버전 지정
         &scd, //스왑체인 속성 구조체의 포인터
-        &swapChain_,
-        &device_,
+        &this->swapChain_,
+        &this->device_,
         nullptr,
-        &context_ //생성된 디바이스 컨텍스트의 포인터가 저장될 포인터
+        &this->context_ //생성된 디바이스 컨텍스트의 포인터가 저장될 포인터
     );
 
     return SUCCEEDED(hr);
@@ -90,13 +89,13 @@ bool DirectX11Renderer::InitDeviceAndSwapChain() {
 /// <returns></returns>
 bool DirectX11Renderer::InitRenderTargetView() {
     Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer; // ID3D11Texture2D 인터페이스 : 2d 텍스쳐이며 스왑체인의 백버퍼를 가리킬 것
-    HRESULT hr = swapChain_->GetBuffer(0, __uuidof(ID3D11Texture2D), &backBuffer); // 스왑체인에서 백버퍼 가져오기(첫 인자: 0번째 버퍼)
+    HRESULT hr = this->swapChain_->GetBuffer(0, __uuidof(ID3D11Texture2D), &backBuffer); // 스왑체인에서 백버퍼 가져오기(첫 인자: 0번째 버퍼)
     if (FAILED(hr)) return false;
 
-    hr = device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTargetView_); // 지정된 텍스쳐를 랜더 타겟 뷰로 설정(backBuffer.Get(): 백 버퍼 텍스쳐의 포인터 반환)
+    hr = this->device_->CreateRenderTargetView(backBuffer.Get(), nullptr, &this->renderTargetView_); // 지정된 텍스쳐를 랜더 타겟 뷰로 설정(backBuffer.Get(): 백 버퍼 텍스쳐의 포인터 반환)
     if (FAILED(hr)) return false;
 
-    context_->OMSetRenderTargets(1, renderTargetView_.GetAddressOf(), nullptr); // 랜더 타겟 설정(1: 랜더 타겟 개수, renderTargetView_.GetAddressOf(): 랜더 타겟 뷰의 포인터, nullptr: 깊이-스탠실 뷰를 사용하지 않도록 지정)
+    this->context_->OMSetRenderTargets(1, this->renderTargetView_.GetAddressOf(), nullptr); // 랜더 타겟 설정(1: 랜더 타겟 개수, renderTargetView_.GetAddressOf(): 랜더 타겟 뷰의 포인터, nullptr: 깊이-스탠실 뷰를 사용하지 않도록 지정)
 
     // 뷰포트 : 화면에 표시되는 2D 사각형 영역이며 여러 개 가능
     // 뷰포트 설정 추가
@@ -113,7 +112,7 @@ bool DirectX11Renderer::InitRenderTargetView() {
     viewport.TopLeftX = 0.0f;
     viewport.TopLeftY = 0.0f;
 
-    context_->RSSetViewports(1, &viewport); // 렌더링 파이프라인의 래스터라이저 단계에서 사용할 뷰포트를 설정
+    this->context_->RSSetViewports(1, &viewport); // 렌더링 파이프라인의 래스터라이저 단계에서 사용할 뷰포트를 설정
 
     return true;
 }
@@ -192,7 +191,7 @@ bool DirectX11Renderer::InitPipeline() {
     if (FAILED(hr)) return false;
 
     // 만들어진 입력 레이아웃을 설정.
-    this->context_->IASetInputLayout(inputLayout_.Get());
+    this->context_->IASetInputLayout(this->inputLayout_.Get());
 
     std::vector<Vertex> vertices = {
         { XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
@@ -210,7 +209,7 @@ bool DirectX11Renderer::InitPipeline() {
     D3D11_SUBRESOURCE_DATA initData = {};// 초기 데이터로 채울 버퍼
     initData.pSysMem = vertices.data();// 초기 데이터가 저장된 메모리의 포인터 전달
 
-    hr = device_->CreateBuffer(&bd, &initData, &this->vertexBuffer_);// 버텍스 버퍼 생성(정점 데이터를 GPU에 전달할 때 사용됨)
+    hr = this->device_->CreateBuffer(&bd, &initData, &this->vertexBuffer_);// 버텍스 버퍼 생성(정점 데이터를 GPU에 전달할 때 사용됨)
     if (FAILED(hr)) return false;
 
     UINT stride = sizeof(Vertex);// 각 정점의 크기
@@ -479,7 +478,22 @@ void DirectX11Renderer::ClearScreen() {
     this->swapChain_->Present(1, 0);//백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
 }
 
+/// <summary>
+/// 자원 해제
+/// </summary>
+void DirectX11Renderer::Cleanup() {
+    // 모든 셰이더 리소스와 파이프라인 상태를 해제
+    if (this->context_) {
+        this->context_->ClearState(); 
+    }
 
+    if (this->swsContext_) {
+        sws_freeContext(this->swsContext_);
+        this->swsContext_ = nullptr;
+    }
+
+    // 스마트 포인터를 사용한 것들은 명시적 해제 불필요
+}
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

@@ -22,6 +22,7 @@ using System.Windows.Shapes;
 using System.Windows.Forms.Integration;
 using System.Threading;
 using System.Windows.Interop;
+using MediaPlayer.Mvvm;
 
 namespace MediaPlayer
 {
@@ -553,6 +554,10 @@ namespace MediaPlayer
         {
             var dxTestWnd = new DirectXTestWindow();
             dxTestWnd.Show();
+        }
+
+        private void Onbtn_streamOpenClick(object sender, RoutedEventArgs e)
+        {
         }
     }
 }

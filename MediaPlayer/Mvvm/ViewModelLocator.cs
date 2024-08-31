@@ -9,5 +9,7 @@ namespace MediaPlayer.Mvvm
     public class ViewModelLocator
     {
         public MainWindowViewModel MainWindowViewModel => new MainWindowViewModel();
+        public StreamOpenWindowViewModel StreamOpenWindowViewModel => new StreamOpenWindowViewModel();
+        public FilePlayerViewModel FilePlayerViewModel => new FilePlayerViewModel();
     }
 }

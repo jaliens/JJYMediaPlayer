@@ -223,9 +223,15 @@ void Player::readThreadTask()
                         break;
                     }
 
-                    if (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE)
+                    size_t currentPacketBufferSize = this->packetBuffer.size();
+                    if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
                     {
                         this->packetBuffer.push(p);
+
+                        if (currentPacketBufferSize >= this->CAN_POP_PACKET_BUFFER_SIZE)
+                        {
+                            this->bufferCondVar.notify_all();
+                        }
                     }
                 }
                 tempBuffer.clear();
@@ -238,7 +244,6 @@ void Player::readThreadTask()
                 std::lock_guard<std::mutex> lock(bufferMutex);
                 if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
                     this->bufferCondVar.notify_all();
-                    //printf("디코딩 시작 가능 알림");
                 }
             }
             
@@ -280,7 +285,6 @@ void Player::readThreadTask()
                     std::lock_guard<std::mutex> lock(bufferMutex);
                     if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
                         this->bufferCondVar.notify_all();
-                        //printf("디코딩 시작 가능 알림(패킷 리드 끝)");
                     }
                 }
             }
@@ -381,6 +385,7 @@ void Player::videoDecodeAndRenderThreadTask()
                 }
                 packet = this->packetBuffer.front();
                 this->packetBuffer.pop();
+                bufferCondVar.notify_all();////
             }
 
             if (packet->stream_index != this->video_stream_idx)
@@ -404,7 +409,6 @@ void Player::videoDecodeAndRenderThreadTask()
                     this->stop();
                     });
 
-                fprintf(stderr, "   end\n");
                 fprintf(stderr, "   end\n");
                 break;
             }
@@ -807,6 +811,7 @@ void Player::progressCheckingThreadTask()
         {
             this->onVideoProgressCallback(this->progress_percent);
         }
+        this->bufferCondVar.notify_all();
     }
 }
 
@@ -863,7 +868,7 @@ void Player::progressCheckingThreadTask()
 void Player::openFileStream(const char* filePath, int* videoWidth, int* videoHeight)
 {
     std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
-
+    //filePath = "rtsp://localhost:8554/sex";
     if (filePath != nullptr)
     {
         this->inputFilename = filePath;

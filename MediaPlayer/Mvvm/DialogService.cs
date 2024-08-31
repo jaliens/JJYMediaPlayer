@@ -18,6 +18,9 @@ namespace MediaPlayer.Mvvm
                 case "MainWindowViewModel":
                     window = new MainWindow();
                     break;
+                case "StreamOpenWindowViewModel":
+                    window = new StreamOpenWindow();
+                    break;
             }
 
             window?.ShowDialog();

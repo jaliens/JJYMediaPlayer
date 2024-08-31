@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:MediaPlayer"
              xmlns:customControl="clr-namespace:Common.CustomControl;assembly=Common"
+             DataContext="{Binding FilePlayerViewModel, Source={StaticResource ViewModelLocator}}"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800" >
     <UserControl.Resources>
@@ -89,9 +90,19 @@
                 Grid.Column="5"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Stretch"
+                Visibility="Hidden"
                 Content="T"
                 ToolTip="파일열기"
                 Click="Onbtn_testClick"/>
+            <Button
+                x:Name="btn_streamOpen"
+                Grid.Column="5"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Content="📹"
+                ToolTip="스트림주소열기"
+                Command="{Binding ShowStreamOpenWindowCommand}"
+                Click="Onbtn_streamOpenClick"/>
         </Grid>
     </Grid>
 </UserControl>

@@ -32,6 +32,7 @@ public:
     void RenderEmptyRect();
     void Render(AVFrame* frame);
     void ClearScreen();
+    void Cleanup();
 
 private:
     bool InitDeviceAndSwapChain();
