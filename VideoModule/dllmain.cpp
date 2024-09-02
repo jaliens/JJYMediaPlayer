@@ -67,8 +67,6 @@ extern "C" __declspec(dllexport) bool CreatePlayer()
     if (player == nullptr)
     {
         player = new Player();
-
-        //return player->CreateVideoDx11RenderScreen(hWnd);
         return true;
     }
     else
@@ -139,6 +137,11 @@ extern "C" __declspec(dllexport) void RegisterOnStopCallback(OnStopCallbackFunct
 extern "C" __declspec(dllexport) void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
 {
     player->RegisterOnRenderTimingCallback(callback);
+}
+
+extern "C" __declspec(dllexport) void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
+{
+    player->RegisterOnVideoSizeCallback(callback);
 }
 
 extern "C" __declspec(dllexport) void Cleanup()
@@ -368,6 +371,87 @@ extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
 
 
 
+/// <summary>
+/// Rtsp재생
+/// </summary>
+extern "C" __declspec(dllexport) void playRtsp(HWND hWnd)
+{
+    player->playRtsp(hWnd);
+
+    return;
+}
+
+
+
+
+/// <summary>
+/// Rtsp정지
+/// </summary>
+extern "C" __declspec(dllexport) void stopRtsp()
+{
+    player->stopRtsp();
+
+    return;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/// <summary>
+/// RTSP 플레이어 만들기
+/// </summary>
+extern "C" __declspec(dllexport) bool initRtspPlayer(const char* rtspAddress)
+{
+    if (player->openRtspStream(rtspAddress) == false)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+
 
 
 
@@ -448,8 +532,6 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
 
 
     const char* filename = "asdf.avi";
-   /* const char* filename = "video.avi";
-    const char* filename = "video_.avi";*/
 
 
     int ret;
@@ -491,14 +573,12 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
             return;
         }
 
-        /* Copy codec parameters from input stream to output codec context */
         if ((ret = avcodec_parameters_to_context(video_dec_ctx, videoStream->codecpar)) < 0) {
             fprintf(stderr, "Failed to copy %s codec parameters to decoder context\n",
                 av_get_media_type_string(AVMEDIA_TYPE_VIDEO));
             return;
         }
 
-        /* Init the decoders */
         if ((ret = avcodec_open2(video_dec_ctx, videoDecoder, NULL)) < 0) {
             fprintf(stderr, "Failed to open %s codec\n",
                 av_get_media_type_string(AVMEDIA_TYPE_VIDEO));
@@ -556,8 +636,6 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
                 ret = avcodec_receive_frame(video_dec_ctx, frame);
                 if (ret < 0) 
                 {
-                    // those two return values are special and mean there is no output
-                    // frame available, but there were no errors during decoding
                     if (ret == AVERROR_EOF)
                     {
                         fprintf(stderr, "EOF\n");
@@ -575,7 +653,6 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
                     break;
                 }
 
-                // write the frame data to output file
                 if (video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO) 
                 {
                     fprintf(stderr, "비디오 패킷 디코디드\n");
@@ -619,13 +696,6 @@ extern "C" __declspec(dllexport) void RunDecodeExample1()
 
                     //// RGB 데이터에 필요한 버퍼 크기 계산
                     img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
-
-                    //콜백 메서드 호출
-                    /*if (player->onImageDecodeCallback != nullptr)
-                    {
-                        player->onImageDecodeCallback(afterConvertFrame->data[0], img_bufsize, width, height);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(33));
-                    }*/
                     
                 }
                 else
@@ -772,8 +842,6 @@ extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample()
 
 
     const char* filename = "asdf.avi";
-    /* const char* filename = "video.avi";
-     const char* filename = "video_.avi";*/
 
 
     int ret;
@@ -933,8 +1001,6 @@ extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample()
             while (ret >= 0) {
                 ret = avcodec_receive_frame(video_dec_ctx, frame);
                 if (ret < 0) {
-                    // those two return values are special and mean there is no output
-                    // frame available, but there were no errors during decoding
                     if (ret == AVERROR_EOF)
                     {
                         fprintf(stderr, "EOF\n");
@@ -952,7 +1018,6 @@ extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample()
                     break;
                 }
 
-                // write the frame data to output file
                 if (video_dec_ctx->codec->type == AVMEDIA_TYPE_VIDEO)
                 {
                     fprintf(stderr, "비디오 패킷 디코디드\n");
@@ -1009,14 +1074,6 @@ extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample()
 
                     //// RGB 데이터에 필요한 버퍼 크기 계산
                     img_bufsize = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
-
-                    //콜백 메서드 호출
-                    //if (player->onImageDecodeCallback != nullptr)
-                    //{
-                    //    //imageDecodedCallback(*(afterConvertFrame->data), img_bufsize);
-                    //    std::this_thread::sleep_for(std::chrono::milliseconds(33));
-                    //}
-
                 }
                 else
                 {

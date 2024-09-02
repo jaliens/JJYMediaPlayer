@@ -1,4 +1,5 @@
 ﻿using Common.Mvvm;
+using MediaPlayer.Service;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace MediaPlayer
 
         private void ProcShowStreamOpenWindowCommand(object? param)
         {
-            App.DialogService.ShowDialog("StreamOpenWindowViewModel");
+            App.DialogService.ShowDialog("StreamOpenWindowViewModel", out bool dialogResult);
         }
     }
 }

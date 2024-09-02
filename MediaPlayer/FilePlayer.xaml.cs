@@ -23,6 +23,10 @@ using System.Windows.Forms.Integration;
 using System.Threading;
 using System.Windows.Interop;
 using MediaPlayer.Mvvm;
+using MediaPlayer.Service;
+using CommunityToolkit.Mvvm.Messaging;
+using OpenCvSharp.Internal.Vectors;
+using MediaPlayer.Message;
 
 namespace MediaPlayer
 {
@@ -53,6 +57,8 @@ namespace MediaPlayer
         private delegate void OnStopCallbackFunction();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void OnRenderTimingCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void OnVideoSizeCallbackFunction(int width, int height);
 
         ImageCallback? _imageCallBack = null;
         OnVideoLengthCallbackFunction? _videoLengthCallback = null;
@@ -64,8 +70,8 @@ namespace MediaPlayer
         OnResumeCallbackFunction? _resumeCallback = null;
         OnStopCallbackFunction? _stopCallback = null;
         OnRenderTimingCallbackFunction? _renderTimingCallback = null;
+        OnVideoSizeCallbackFunction? _videoSizeCallback = null;
         
-        private string _fileName = string.Empty;
         private int _videoWidth = 0;
         private int _videoHeight = 0;
 
@@ -100,6 +106,9 @@ namespace MediaPlayer
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
 
 
 
@@ -182,6 +191,9 @@ namespace MediaPlayer
 
 
 
+
+
+
         public FilePlayer()
         {
             this.InitializeComponent();
@@ -197,6 +209,57 @@ namespace MediaPlayer
             this._resumeCallback = this.OnResumeCallback;
             this._stopCallback = this.OnStopCallback;
             this._renderTimingCallback = this.OnRenderTimingCallback;
+            this._videoSizeCallback = this.OnVideoSizeCallback;
+
+            this.RegisterToMessage();
+        }
+
+        private void RegisterToMessage()
+        {
+            WeakReferenceMessenger.Default.Register<VideoSourceSetMessage>(this, this.OnVideoSourceSetMessage);
+            WeakReferenceMessenger.Default.Register<PlayserStatusMessage>(this, this.OnPlayserStatusMessage);
+        }
+
+
+        private void OnPlayserStatusMessage(object recipient, PlayserStatusMessage message)
+        {
+
+        }
+
+        /// <summary>
+        /// 영상 소스 설정 결정 시 호출
+        /// </summary>
+        /// <param name="recipient"></param>
+        /// <param name="message"></param>
+        private void OnVideoSourceSetMessage(object recipient, VideoSourceSetMessage message)
+        {
+            switch (message.SelectedSourceType)
+            {
+                case VideoSourceSetMessage.SourceType.File:
+                    {
+                    }
+                    break;
+                case VideoSourceSetMessage.SourceType.RTSP:
+                    {
+                        this.InitRtspPlayer();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void InitRtspPlayer()
+        {
+            if (string.IsNullOrWhiteSpace(PlayerStatusService.Instance.RtspAddress) == true)
+            {
+                return;
+            }
+            //this._videoWidth = 1280;
+            //this._videoHeight = 720;
+            this.CreateWin32Window();
+            //CreateDx11RenderScreenOnPlayer(this._directXWindowHandle, this._videoWidth, this._videoHeight);
+            PlayerStatusService.Instance.InitRtspPlayer(PlayerStatusService.Instance.RtspAddress);
         }
 
         private void OnStopCallback()
@@ -217,6 +280,18 @@ namespace MediaPlayer
             });
         }
 
+        /// <summary>
+        /// 플레이어 라이브러리에서 동영상 스트리밍의 비디오 사이즈가 결정되면 호출됨
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        private void OnVideoSizeCallback(int width, int height)
+        {
+            this._videoWidth = width;
+            this._videoHeight = height;
+            this.UpdateDirectXWindowPosition();
+        }
+
         private void OnResumeCallback()
         {
             this._isPaused = false;
@@ -229,7 +304,6 @@ namespace MediaPlayer
 
         private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
         {
-            //this.CreateWin32Window();
             CreatePlayer();
 
             if (this._imageCallBack != null)
@@ -264,6 +338,10 @@ namespace MediaPlayer
             {
                 RegisterOnRenderTimingCallback(this._renderTimingCallback);
             }
+            if (this._videoSizeCallback != null)
+            {
+                RegisterOnVideoSizeCallback(this._videoSizeCallback);
+            }
 
 
             //비관리쪽에서만 쓸 녀석들이기 때문에 가비지컬렉터에 의해 정리될 가능성 제거
@@ -280,12 +358,6 @@ namespace MediaPlayer
 
             var parentWnd = Window.GetWindow(this);
             parentWnd.LocationChanged += OnParentWnd_LocationChanged;
-
-            Task.Run(() =>
-            {
-                Thread.Sleep(2000);
-                RenderTestRectangleDx11();
-            });
         }
 
         private void OnParentWnd_LocationChanged(object? sender, EventArgs e)
@@ -300,9 +372,18 @@ namespace MediaPlayer
         /// </summary>
         private void OpenStreamAndRenderer()
         {
-            OpenFileStream(this._fileName, out this._videoWidth, out this._videoHeight);
-            this.CreateWin32Window();
-            CreateDx11RenderScreenOnPlayer(this._directXWindowHandle, this._videoWidth, this._videoHeight);
+            if (string.IsNullOrWhiteSpace(PlayerStatusService.Instance.FileAddress) == false)
+            {
+                OpenFileStream(PlayerStatusService.Instance.FileAddress, out this._videoWidth, out this._videoHeight);
+                this.CreateWin32Window();
+                CreateDx11RenderScreenOnPlayer(this._directXWindowHandle, this._videoWidth, this._videoHeight);
+            }
+            else if (string.IsNullOrWhiteSpace(PlayerStatusService.Instance.RtspAddress) == false)
+            {
+                OpenFileStream(PlayerStatusService.Instance.RtspAddress, out this._videoWidth, out this._videoHeight);
+                this.CreateWin32Window();
+                CreateDx11RenderScreenOnPlayer(this._directXWindowHandle, this._videoWidth, this._videoHeight);
+            }
         }
 
         /// <summary>
@@ -325,6 +406,10 @@ namespace MediaPlayer
 
             var videoRatio = (double)this._videoWidth / this._videoHeight;
             var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
+            if (this._videoWidth == 0 && this._videoHeight == 0)
+            {
+                videoRatio = 1;
+            }
 
             double innerWidth = 0;
             double innerHeight = 0;
@@ -351,55 +436,66 @@ namespace MediaPlayer
         /// </summary>
         private void UpdateDirectXWindowPosition()
         {
-            var parentWnd = Window.GetWindow(this);
-
-            Point relativeLocation = win32WindowArea.TransformToAncestor(parentWnd)
-                                              .Transform(new Point(0, 0));
-
-            double multiplier = 1.0;
-            PresentationSource source = PresentationSource.FromVisual(this);
-            if (source != null && source.CompositionTarget != null)
+            Application.Current?.Dispatcher.Invoke(() =>
             {
-                multiplier = source.CompositionTarget.TransformToDevice.M11;//디스플레이 설정에서 배율 설정값 가져오기
-            }
+                if (this._directXWindowHandle == IntPtr.Zero)
+                {
+                    return;
+                }
+
+                var parentWnd = Window.GetWindow(this);
+
+                Point relativeLocation = win32WindowArea.TransformToAncestor(parentWnd)
+                                                  .Transform(new Point(0, 0));
+
+                double multiplier = 1.0;
+                PresentationSource source = PresentationSource.FromVisual(this);
+                if (source != null && source.CompositionTarget != null)
+                {
+                    multiplier = source.CompositionTarget.TransformToDevice.M11;//디스플레이 설정에서 배율 설정값 가져오기
+                }
 
 
 
 
 
-            var videoRatio = (double)this._videoWidth / this._videoHeight;
-            var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
+                var videoRatio = (double)this._videoWidth / this._videoHeight;
+                var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
+                if (this._videoWidth == 0 && this._videoHeight == 0)
+                {
+                    videoRatio = 1;
+                }
 
-            double innerWidth = 0;
-            double innerHeight = 0;
-            double innerLeftOffset = 0;
-            double innerTopOffset = 0;
-            if (videoRatio >= gridRatio)
-            {
-                innerWidth = this.win32WindowArea.ActualWidth;
-                innerHeight = this.win32WindowArea.ActualWidth / videoRatio;
-                innerTopOffset = (this.win32WindowArea.ActualHeight - innerHeight) / 2;
-            }
-            else //if (videoRatio < gridRatio)
-            {
-                innerHeight = this.win32WindowArea.ActualHeight;
-                innerWidth = this.win32WindowArea.ActualHeight * videoRatio;
-                innerLeftOffset = (this.win32WindowArea.ActualWidth - innerWidth) / 2;
-            }
+                double innerWidth = 0;
+                double innerHeight = 0;
+                double innerLeftOffset = 0;
+                double innerTopOffset = 0;
+                if (videoRatio >= gridRatio)
+                {
+                    innerWidth = this.win32WindowArea.ActualWidth;
+                    innerHeight = this.win32WindowArea.ActualWidth / videoRatio;
+                    innerTopOffset = (this.win32WindowArea.ActualHeight - innerHeight) / 2;
+                }
+                else //if (videoRatio < gridRatio)
+                {
+                    innerHeight = this.win32WindowArea.ActualHeight;
+                    innerWidth = this.win32WindowArea.ActualHeight * videoRatio;
+                    innerLeftOffset = (this.win32WindowArea.ActualWidth - innerWidth) / 2;
+                }
 
 
 
 
 
-            int videoLeft = (int)((relativeLocation.X + innerLeftOffset) * multiplier);
-            int videoTop = (int)((relativeLocation.Y + innerTopOffset) * multiplier);
-            int targetLeft = (int)(parentWnd.Left * multiplier) + videoLeft;
-            int targetTop = (int)(parentWnd.Top * multiplier) + videoTop;
-            //int targetWidth = (int)(this.win32WindowArea.ActualWidth * multiplier);
-            //int targetHeight = (int)(this.win32WindowArea.ActualHeight * multiplier);
-            int targetWidth = (int)(innerWidth * multiplier);
-            int targetHeight = (int)(innerHeight * multiplier);
-            SetWindowPos(this._directXWindowHandle, IntPtr.Zero, targetLeft, targetTop, targetWidth, targetHeight, SWP_NOZORDER);
+                int videoLeft = (int)((relativeLocation.X + innerLeftOffset) * multiplier);
+                int videoTop = (int)((relativeLocation.Y + innerTopOffset) * multiplier);
+                int targetLeft = (int)(parentWnd.Left * multiplier) + videoLeft;
+                int targetTop = (int)(parentWnd.Top * multiplier) + videoTop;
+                int targetWidth = (int)(innerWidth * multiplier);
+                int targetHeight = (int)(innerHeight * multiplier);
+
+                SetWindowPos(this._directXWindowHandle, IntPtr.Zero, targetLeft, targetTop, targetWidth, targetHeight, SWP_NOZORDER);
+            });
         }
 
         private void OnFilePlayer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -427,8 +523,11 @@ namespace MediaPlayer
         private void OnVideoLengthCallback(double length)
         {
             length = 100;
-            this.mediaProgressBar.Minimum = 0;
-            this.mediaProgressBar.Maximum = length;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                this.mediaProgressBar.Minimum = 0;
+                this.mediaProgressBar.Maximum = length;
+            });
             Console.WriteLine("길이:" + length);
         }
 
@@ -461,20 +560,27 @@ namespace MediaPlayer
 
         private void OnPlayButtonClick(object sender, RoutedEventArgs e)
         {
-            if (this._isPaused == true)
+            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
             {
-                Play();
-                this.btn_pause.Visibility = Visibility.Visible;
-                this.btn_play.Visibility = Visibility.Hidden;
-            }
-            else
-            {
-                Stop();
-                this.OpenStreamAndRenderer();
+                if (this._isPaused == true)
+                {
+                    Play();
+                    this.btn_pause.Visibility = Visibility.Visible;
+                    this.btn_play.Visibility = Visibility.Hidden;
+                }
+                else
+                {
+                    Stop();
+                    this.OpenStreamAndRenderer();
 
-                Play();
-                this.btn_pause.Visibility = Visibility.Visible;
-                this.btn_play.Visibility = Visibility.Hidden;
+                    Play();
+                    this.btn_pause.Visibility = Visibility.Visible;
+                    this.btn_play.Visibility = Visibility.Hidden;
+                }
+            }
+            else if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
+            {
+                PlayerStatusService.Instance.PlayRtsp(this._directXWindowHandle);
             }
         }
 
@@ -544,8 +650,12 @@ namespace MediaPlayer
             openFileDialog.Filter = "Video Files|*.mp4;*.avi;*.mkv;*.mov;*.wmv|All Files|*.*";
             if (openFileDialog.ShowDialog() == true)
             {
-                this._fileName = openFileDialog.FileName;
-                Stop();
+                PlayerStatusService.Instance.RtspAddress = null;
+                PlayerStatusService.Instance.FileAddress = openFileDialog.FileName;
+                if (string.IsNullOrWhiteSpace(PlayerStatusService.Instance.FileAddress) == false)
+                {
+                    Stop();
+                }
                 this.OpenStreamAndRenderer();
             }
         }

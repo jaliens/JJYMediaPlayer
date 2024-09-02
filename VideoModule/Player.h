@@ -52,23 +52,32 @@ typedef void (*OnPauseCallbackFunction)();
 typedef void (*OnResumeCallbackFunction)();
 typedef void (*OnStopCallbackFunction)();
 typedef void (*OnRenderTimingCallbackFunction)();
+typedef void (*OnVideoSizeCallbackFunction)(int width, int height);
 
 class Player
 {
 public:
     Player();
+    Player(HWND hWnd);
 
     int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
 
     void openFileStream(const char* filePath, int* videoWidth, int* videoHeight);
     int startReadThread();
-    //int startRenderThread();
     int startDecodeAndRenderThread();
+
+    bool openRtspStream(const char* rtspPath);
+    int startReadRtspThread();
+    int startDecodeAndRenderRtspThread();
+
     int play();
     int pause();
     int resume();
     int stop();
     int jumpPlayTime(double seekPercent);
+
+    int playRtsp(HWND hWnd);
+    int stopRtsp();
 
     void renderFrame();
 
@@ -82,7 +91,7 @@ public:
     void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
     void RegisterOnStopCallback(OnResumeCallbackFunction callback);
     void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
-    
+    void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
     void Cleanup();
 
     bool CreateVideoDx11RenderScreen(HWND hwnd, int videoWidth, int videoHeight);
@@ -90,7 +99,7 @@ public:
 
     DirectX11Renderer* directx11Renderer = nullptr;
 private:
-
+    HWND hwnd_ = nullptr;//랜더링 창
     AVFormatContext* formatContext = nullptr; // c++11 이상에선 NULL 보다 nullptr을 사용하면 타입 안전하다
     AVCodecContext* video_dec_ctx = nullptr;
     AVCodecContext* audio_dec_ctx = nullptr;
@@ -123,8 +132,8 @@ private:
     struct SwsContext* swsCtx;
     int img_bufsize = 0;
 
-    const char* inputFilename = "dddd.avi";
-    bool isFileStreamOpen = false;
+    const char* inputSourcePath = "dddd.avi";
+    bool isStreamSourceOpen = false;
 
     //bool isRenderStarted = false;
     bool isDecodingPaused = false;
@@ -146,9 +155,9 @@ private:
     FixedQueue<AVFrame, 200> fixedVideoRenderingQueue;
 
     std::thread* readThread = nullptr;
-    std::thread* decodeThread = nullptr;
-    std::thread* renderThread = nullptr;
     std::thread* decodeAndRenderThread = nullptr;
+    std::thread* readRtspThread = nullptr;
+    std::thread* decodeAndRenderRtspThread = nullptr;
     std::thread* progressCheckingThread = nullptr;
 
     std::mutex renderingQmtx;
@@ -169,6 +178,7 @@ private:
     OnResumeCallbackFunction onResumeCallbackFunction = nullptr;
     OnStopCallbackFunction onStopCallbackFunction = nullptr;
     OnRenderTimingCallbackFunction onRenderTimingCallbackFunction = nullptr;
+    OnVideoSizeCallbackFunction onVideoSizeCallbackFunction = nullptr;
 
 
     
@@ -182,7 +192,7 @@ private:
     std::condition_variable readingPauseCondVar;
     std::condition_variable decodingPauseCondVar;
     std::condition_variable waitingAfterCommandFlagCondVar;
-    const int MAX_PACKET_BUFFER_SIZE = 60;//패킷버퍼 최대 사이즈
+    const int MAX_PACKET_BUFFER_SIZE = 1060;//패킷버퍼 최대 사이즈
     const int CAN_POP_PACKET_BUFFER_SIZE = 30;//디코딩을 시작할 수 있는 최소 패킷 버퍼사이즈 
 
 
@@ -196,5 +206,7 @@ private:
     void videoDecodeAndRenderThreadTask();
     void progressCheckingThreadTask();
 
+    void readRtspThreadTask();
+    void videoDecodeAndRenderRtspThreadTask();
 };
 

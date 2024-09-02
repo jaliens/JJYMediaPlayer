@@ -24,7 +24,7 @@ namespace MediaPlayer
 
         private void OnStartup(object sender, StartupEventArgs e)
         {
-            DialogService.ShowDialog("MainWindowViewModel");
+            DialogService.ShowDialog("MainWindowViewModel", out bool dialogResult);
         }
     }
 }

@@ -12,8 +12,8 @@ namespace Common.Mvvm
         /// 뷰모델 이름을 가지고 매핑된 창을 띄움
         /// </summary>
         /// <param name="viewModelName"></param>
-        void ShowDialog(string viewModelName);
+        void ShowDialog(string viewModelName, out bool dialogResult);
 
-        bool ShowDialog(string viewModelName, string message);
+        void CloseDialog(string viewModelName, bool dialogResult);
     }
 }

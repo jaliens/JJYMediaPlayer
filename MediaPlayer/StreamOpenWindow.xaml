@@ -10,6 +10,28 @@
         DataContext="{Binding StreamOpenWindowViewModel, Source={StaticResource ViewModelLocator}}"
         Title="영상 스트림 열기" Height="400" Width="400">
     <Grid>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="1"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal">
+            <Label Content="rtsp 주소 " 
+                   Foreground="DarkOrange"
+                   FontWeight="ExtraBold"/>
+            <TextBox Width="250" 
+                     MaxLines="1"
+                     HorizontalContentAlignment="Left"
+                     Text="{Binding RTSPAddress}"
+                     />
+            <Button HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="Green"
+                    Content="✔"
+                    Command="{Binding ConfirmRTSPAddressCommand}"/>
+        </StackPanel>
     </Grid>
 </customcontrol:WindowBasic>

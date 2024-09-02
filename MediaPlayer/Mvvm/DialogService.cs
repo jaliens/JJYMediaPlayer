@@ -10,7 +10,9 @@ namespace MediaPlayer.Mvvm
 {
     public class DialogService : IDialogService
     {
-        public void ShowDialog(string viewModelName)
+        private Dictionary<string,Window> _viewModelNameWindowPair = new Dictionary<string,Window>();
+
+        public void ShowDialog(string viewModelName, out bool dialogResult)
         {
             Window? window = null;
             switch (viewModelName)
@@ -23,12 +25,29 @@ namespace MediaPlayer.Mvvm
                     break;
             }
 
-            window?.ShowDialog();
+            if (window != null)
+            {
+                this._viewModelNameWindowPair.TryAdd(viewModelName, window);
+            }
+
+            bool? result = window?.ShowDialog();
+            dialogResult = result != null ? (bool)result : false;
         }
 
-        public bool ShowDialog(string viewModelName, string message)
+        public void CloseDialog(string viewModelName, bool dialogResult)
         {
-            return true;
+            if (string.IsNullOrWhiteSpace(viewModelName))
+            {
+                return;
+            }
+
+            if (this._viewModelNameWindowPair.TryGetValue(viewModelName, out Window? window) == false)
+            {
+                return;
+            }
+            this._viewModelNameWindowPair.Remove(viewModelName);
+
+            window.DialogResult = dialogResult;
         }
     }
 }
