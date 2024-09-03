@@ -140,7 +140,7 @@ private:
     bool isReadingPaused = false;
     bool isPaused = false;
     bool isWaitingAfterCommand = false;//명령 완료 대기 플래그
-    bool endOfDecoding = false;
+    bool endOfDecoding = false;//디코딩 작업 중지 플래그
     bool isReading = true;
 
     /*std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;

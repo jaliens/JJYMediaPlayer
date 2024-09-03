@@ -1,39 +1,13 @@
 #pragma once
 
 #include "pch.h"
-#include "Monitor.h"
 #include "Player.h"
-#include <thread>
-#include <future>
-#include <chrono>
-#include <d3d11.h>
-#include <dxgi.h>
-#include <dxgi1_2.h>
-#include <wrl.h>
-#include <d3dcompiler.h>
-#include <DirectXMath.h>
-#include <atomic>
-#include <iostream>
 
-extern "C" {
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/avutil.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/timestamp.h>
-#include <libswscale/swscale.h>
-
-#include <SDL.h>
-}
 
 
 #define PKT_END     -0x9999
 
+using namespace std::chrono;
 
 int Player::startReadThread()
 {
@@ -391,6 +365,12 @@ void Player::readRtspThreadTask()
 
 void Player::videoDecodeAndRenderRtspThreadTask()
 {
+    bool isFirstFrameRendered = false;//첫 프레임이 랜더링 되었냐 여부
+    int64_t firstFrameRenderTime_ms;//첫 프레임이 랜더링된 시각
+    int64_t firstFramePts;//첫 재생 프레임의 pts
+    int64_t nextFrameRenderTime_ms;//다음 프레임 랜더링 예정 시각
+    int64_t fakePts = -1;//frame에 PTS정보가 없거나 잘못되었을 때 사용할 가짜 PTS
+
     this->endOfDecoding = false;
 
     while (this->isReading) 
@@ -433,7 +413,6 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                 continue;
             }
 
-            int64_t lastPts = 0;
             AVFrame* frame = av_frame_alloc();
             if (avcodec_send_packet(this->video_dec_ctx, packet) >= 0)
             {
@@ -494,19 +473,52 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                         //}
                         /////wpf image 랜더링
 
+                        if (frame->pts < 0)
+                        {
+                            if (fakePts == -1)
+                            {
+                                frame->pts = fakePts = 0;
+                                fakePts++;
+                            }
+                            else
+                            {
+                                frame->pts = fakePts;
+                                fakePts++;
+                            }
+                            printf("         가짜 pts : %lld\n", frame->pts - 1);
+                        }
 
+                        if (isFirstFrameRendered == false)
+                        {
+                            this->directx11Renderer->Render(frame);
+                            isFirstFrameRendered = true;
+                            firstFramePts = frame->pts;
+                            steady_clock::time_point now = std::chrono::high_resolution_clock::now();
+                            firstFrameRenderTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                        }
+                        else
+                        {
+                            steady_clock::time_point now = std::chrono::high_resolution_clock::now();
+                            int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                            //현 프레임의 목표 랜더 시각 : 첫랜더 시각 + (현 프레임의 pts - 첫 프레임의 pts) * 타임베이스
+                            int64_t targetRenderTime_ms = firstFrameRenderTime_ms + (frame->pts - firstFramePts) * this->videoTimeBase_ms;
+                            //목표 랜더 시각과 현 시각의 차이 계산 : 현 시각 - 목표 시각
+                            int64_t gapOfCurrentAndTargetTime_ms = now_ms - targetRenderTime_ms;
+                            
+                            if (gapOfCurrentAndTargetTime_ms <= 0)
+                            {//프레임 재생 지연
+                                std::this_thread::sleep_for(std::chrono::milliseconds(-gapOfCurrentAndTargetTime_ms));
 
-                        //directX11 랜더링
-                        this->directx11Renderer->Render(frame);
+                                //directX11 랜더링
+                                this->directx11Renderer->Render(frame);
 
-                        int64_t timeGap = 1 / this->fps * 1000;
-                        printf("         pts : %d      time gap : %lldms\n", (int)frame->pts, timeGap);
-
-                        //다음 프레임 재생 지연
-                        std::this_thread::sleep_for(std::chrono::milliseconds(timeGap));
-                        
-                        lastPts = frame->pts;
-                        //av_frame_unref(frame);
+                                printf("         render frame pts : %lld\n", frame->pts);
+                            }
+                            else 
+                            {// 시간이 지났으므로 프레임 버림
+                                printf("         dump frame pts : %lld\n", frame->pts);
+                            }
+                        }
                     }
                 }
             }
@@ -928,6 +940,12 @@ void Player::readThreadTask()
 /// </summary>
 void Player::videoDecodeAndRenderThreadTask()
 {
+    bool isFirstFrameRendered = false;//첫 프레임이 랜더링 되었냐 여부
+    int64_t firstFrameRenderTime_ms = 0;//첫 프레임이 랜더링된 시각
+    int64_t firstFramePts = 0;//첫 재생 프레임의 pts
+    int64_t nextFrameRenderTime_ms = 0;//다음 프레임 랜더링 예정 시각
+    int64_t fakePts = -1;//frame에 PTS정보가 없거나 잘못되었을 때 사용할 가짜 PTS
+
     this->endOfDecoding = false;
 
     while (this->isReading && this->endOfDecoding == false) {
@@ -1052,54 +1070,84 @@ void Player::videoDecodeAndRenderThreadTask()
                     }
                     else
                     {                        
-                        ////wpf image 랜더링
-                        AVFrame* afterConvertFrame;
-                        afterConvertFrame = av_frame_alloc();
-                        if (!afterConvertFrame) {
-                            continue;
-                        }
+                        //////wpf image 랜더링
+                        //AVFrame* afterConvertFrame;
+                        //afterConvertFrame = av_frame_alloc();
+                        //if (!afterConvertFrame) {
+                        //    continue;
+                        //}
 
-                        //변환 프레임의 버퍼 할당
-                        if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, /*AV_PIX_FMT_RGBA*/AV_PIX_FMT_RGB24, 1) < 0) {
-                            continue;
-                        }
+                        ////변환 프레임의 버퍼 할당
+                        //if (av_image_alloc(afterConvertFrame->data, afterConvertFrame->linesize, this->width, this->height, /*AV_PIX_FMT_RGBA*/AV_PIX_FMT_RGB24, 1) < 0) {
+                        //    continue;
+                        //}
 
-                        //변환 실행
-                        sws_scale(this->swsCtx,
-                            (const uint8_t* const*)frame->data, frame->linesize,
-                            0, frame->height,
-                            afterConvertFrame->data, afterConvertFrame->linesize);
+                        ////변환 실행
+                        //sws_scale(this->swsCtx,
+                        //    (const uint8_t* const*)frame->data, frame->linesize,
+                        //    0, frame->height,
+                        //    afterConvertFrame->data, afterConvertFrame->linesize);
 
-                        //콜백 메서드 호출
-                        if (this->onImageDecodeCallback != nullptr)
+                        ////콜백 메서드 호출
+                        //if (this->onImageDecodeCallback != nullptr)
+                        //{
+                        //    this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                        //}
+                        //////wpf image 랜더링
+
+                        if (frame->pts < 0)
                         {
-                            this->onImageDecodeCallback(afterConvertFrame->data[0], this->img_bufsize, this->width, this->height);
+                            if (fakePts == -1)
+                            {
+                                frame->pts = fakePts = 0;
+                                fakePts++;
+                            }
+                            else
+                            {
+                                frame->pts = fakePts;
+                                fakePts++;
+                            }
                         }
-                        ////wpf image 랜더링
 
-
-                        //this->renderFrame();
-                        /*if (this->onRenderTimingCallbackFunction != nullptr)
+                        if (isFirstFrameRendered == false)
                         {
-                            this->onRenderTimingCallbackFunction();
-                        }*/
+                            this->directx11Renderer->Render(frame);
+                            printf("         render frame pts : %lld\n", frame->pts);
+                            isFirstFrameRendered = true;
+                            firstFramePts = frame->pts;
+                            steady_clock::time_point now = std::chrono::high_resolution_clock::now();
+                            firstFrameRenderTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                        }
+                        else
+                        {
+                            steady_clock::time_point now = std::chrono::high_resolution_clock::now();
+                            int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                            //현 프레임의 목표 랜더 시각 : 첫랜더 시각 + (현 프레임의 pts - 첫 프레임의 pts) * 타임베이스
+                            int64_t targetRenderTime_ms = firstFrameRenderTime_ms + (frame->pts - firstFramePts) * this->videoTimeBase_ms;
+                            //목표 랜더 시각과 현 시각의 차이 계산 : 현 시각 - 목표 시각
+                            int64_t gapOfCurrentAndTargetTime_ms = now_ms - targetRenderTime_ms;
 
+                            if (gapOfCurrentAndTargetTime_ms <= 0)
+                            {//프레임 재생 지연
+                                std::this_thread::sleep_for(std::chrono::milliseconds(-gapOfCurrentAndTargetTime_ms));
 
+                                //directX11 랜더링
+                                this->directx11Renderer->Render(frame);
 
-                        ////directX11 랜더링
-                        this->directx11Renderer->Render(frame);
-
-
-
+                                printf("         render frame pts : %lld\n", frame->pts);
+                            }
+                            else
+                            {// 시간이 지났으므로 프레임 버림
+                                printf("         dump frame pts : %lld\n", frame->pts);
+                            }
+                        }
 
                         //프로그래스바 갱신
                         this->progress_percent = (double)frame->pts * videoTimeBase_ms / this->duration_ms * 100.0;
-                        fprintf(stderr, "         pts : %d         프로그래스 : %d \n", (int)frame->pts, this->progress_percent);
+                        /*fprintf(stderr, "         pts : %lld         프로그래스 : %lld \n", frame->pts, this->progress_percent);*/
 
-                        //다음 프레임 재생 지연
-                        std::this_thread::sleep_for(std::chrono::milliseconds((long long)this->videoTimeBase_ms));
-                        /*av_frame_unref(frame);
-                        av_frame_free(&frame);*/
+                        ////다음 프레임 재생 지연
+                        //std::this_thread::sleep_for(std::chrono::milliseconds((long long)this->videoTimeBase_ms));
                     }
 
                 }
