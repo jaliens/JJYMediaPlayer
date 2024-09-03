@@ -60,8 +60,6 @@ public:
     Player();
     Player(HWND hWnd);
 
-    int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
-
     void openFileStream(const char* filePath, int* videoWidth, int* videoHeight);
     int startReadThread();
     int startDecodeAndRenderThread();
