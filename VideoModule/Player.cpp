@@ -9,6 +9,11 @@
 
 using namespace std::chrono;
 
+void Player::RegisterWindowHandle(HWND hWnd)
+{
+    this->hwnd_ = hWnd;
+}
+
 int Player::startReadThread()
 {
     this->readThread = new std::thread(&Player::readThreadTask, this);

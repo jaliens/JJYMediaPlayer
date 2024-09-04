@@ -140,10 +140,17 @@ namespace MediaPlayer.Service
 
 
 
-        public void CreatePlayer(IntPtr hWnd)
+        public void CreatePlayer()
         {
-            createPlayer(hWnd);
+            createPlayer();
         }
+
+        public void RegisterWindowHandle(IntPtr hWnd)
+        {
+            registerWindowHandle(hWnd);
+        }
+
+
 
         public void Play()
         {
@@ -299,9 +306,15 @@ namespace MediaPlayer.Service
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void stopRtsp();
 
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void registerWindowHandle(IntPtr hWnd);
 
 
 
+
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool createPlayer();
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern bool createPlayer(IntPtr hWnd);
@@ -367,5 +380,14 @@ namespace MediaPlayer.Service
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void registerOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
+
+
+
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RunDecodeExample1();
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void RunDecodeAndSDLPlayExample();
     }
 }

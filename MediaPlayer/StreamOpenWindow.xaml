@@ -25,6 +25,12 @@
             <TextBox Width="250" 
                      MaxLines="1"
                      HorizontalContentAlignment="Left"
+                     Background="Black"
+                     BorderThickness="3"
+                     BorderBrush="Blue"
+                     Foreground="#999999"
+                     FontSize="14"
+                     FontWeight="Bold"
                      Text="{Binding RTSPAddress}"
                      />
             <Button HorizontalAlignment="Center"

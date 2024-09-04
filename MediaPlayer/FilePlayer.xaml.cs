@@ -1,31 +1,11 @@
-﻿using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Ink;
-using System.Windows.Input;
-using System.Windows.Markup;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Media.Media3D;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using System.Windows.Forms.Integration;
-using System.Threading;
 using System.Windows.Interop;
-using MediaPlayer.Mvvm;
 using MediaPlayer.Service;
 using CommunityToolkit.Mvvm.Messaging;
-using OpenCvSharp.Internal.Vectors;
 using MediaPlayer.Message;
 
 namespace MediaPlayer
@@ -40,16 +20,10 @@ namespace MediaPlayer
         private int _videoWidth = 0;
         private int _videoHeight = 0;
         private IntPtr _win32WindowHandle = IntPtr.Zero;
-        private bool _isPaused = false;
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
-        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void RunDecodeExample1();
-
-        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void RunDecodeAndSDLPlayExample();
 
         public FilePlayer()
         {
@@ -57,14 +31,17 @@ namespace MediaPlayer
             this.Loaded += this.OnFilePlayer_Loaded;
             this.SizeChanged += OnFilePlayer_SizeChanged;
 
-
             this.RegisterToMessage();
         }
 
-        private void RegisterToMessage()
+        private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
         {
-            WeakReferenceMessenger.Default.Register<VideoSourceSetMessage>(this, this.OnVideoSourceSetMessage);
-            WeakReferenceMessenger.Default.Register<PlayserStatusMessage>(this, this.OnPlayserStatusMessage);
+            this.CreateWin32Window();
+            PlayerStatusService.Instance.RegisterWindowHandle(this._win32WindowHandle);
+            PlayerStatusService.Instance.RegisterOnVideoSizeCallback(this.OnVideoSizeCallback);
+
+            var parentWnd = Window.GetWindow(this);
+            parentWnd.LocationChanged += OnParentWnd_LocationChanged;
         }
 
 
@@ -95,24 +72,6 @@ namespace MediaPlayer
             }
         }
 
-        private void OnStopCallback()
-        {
-            this._isPaused = false;
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                this.btn_play.Visibility = Visibility.Visible;
-                this.btn_pause.Visibility = Visibility.Hidden;
-            });
-        }
-
-        private void OnRenderTimingCallback()
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-
-            });
-        }
-
         /// <summary>
         /// 플레이어 라이브러리에서 동영상 스트리밍의 비디오 사이즈가 결정되면 호출됨
         /// </summary>
@@ -125,41 +84,15 @@ namespace MediaPlayer
             this.UpdateDirectXWindowPosition();
         }
 
-        private void OnResumeCallback()
-        {
-            this._isPaused = false;
-        }
-
-        private void OnPauseCallback()
-        {
-            this._isPaused = true;
-        }
-
-        private void OnFilePlayer_Loaded(object sender, RoutedEventArgs e)
-        {
-            this.CreateWin32Window();
-            PlayerStatusService.Instance.CreatePlayer(this._win32WindowHandle);
-
-            PlayerStatusService.Instance.RegisterOnImgDecodeCallback(this.OnImageCallback);
-            PlayerStatusService.Instance.RegisterOnVideoLengthCallback(this.OnVideoLengthCallback);
-            PlayerStatusService.Instance.RegisterOnVideoProgressCallback(this.OnVideoProgressCallback);
-            PlayerStatusService.Instance.RegisterOnBufferProgressCallback(this.OnBufferProgressCallback);
-            PlayerStatusService.Instance.RegisterOnPauseCallback(this.OnPauseCallback);
-            PlayerStatusService.Instance.RegisterOnResumeCallback(this.OnResumeCallback);
-            PlayerStatusService.Instance.RegisterOnStopCallback(this.OnStopCallback);
-            PlayerStatusService.Instance.RegisterOnRenderTimingCallback(this.OnRenderTimingCallback);
-            PlayerStatusService.Instance.RegisterOnVideoSizeCallback(this.OnVideoSizeCallback);
-
-
-            var parentWnd = Window.GetWindow(this);
-            parentWnd.LocationChanged += OnParentWnd_LocationChanged;
-        }
-
         private void OnParentWnd_LocationChanged(object? sender, EventArgs e)
         {
             this.UpdateDirectXWindowPosition();
         }
 
+        private void OnFilePlayer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            this.UpdateDirectXWindowPosition();
+        }
 
         /// <summary>
         /// directx 11 비디오 랜더링을 위한 win32 창 생성<br/>
@@ -230,10 +163,6 @@ namespace MediaPlayer
                     multiplier = source.CompositionTarget.TransformToDevice.M11;//디스플레이 설정에서 배율 설정값 가져오기
                 }
 
-
-
-
-
                 var videoRatio = (double)this._videoWidth / this._videoHeight;
                 var gridRatio = this.win32WindowArea.ActualWidth / this.win32WindowArea.ActualHeight;
                 if (this._videoWidth == 0 && this._videoHeight == 0)
@@ -258,10 +187,6 @@ namespace MediaPlayer
                     innerLeftOffset = (this.win32WindowArea.ActualWidth - innerWidth) / 2;
                 }
 
-
-
-
-
                 int videoLeft = (int)((relativeLocation.X + innerLeftOffset) * multiplier);
                 int videoTop = (int)((relativeLocation.Y + innerTopOffset) * multiplier);
                 int targetLeft = (int)(parentWnd.Left * multiplier) + videoLeft;
@@ -273,167 +198,10 @@ namespace MediaPlayer
             });
         }
 
-        private void OnFilePlayer_SizeChanged(object sender, SizeChangedEventArgs e)
+        private void RegisterToMessage()
         {
-            this.UpdateDirectXWindowPosition();
-        }
-
-        private void OnImageCallback(IntPtr data, int size, int width, int height)
-        {
-            Task.Run(()=>
-            {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Rgb24, null);
-                    bitmap.Lock();
-                    int bytesPerPixel = 3;
-                    int stride = width * bytesPerPixel;
-                    bitmap.WritePixels(new Int32Rect(0, 0, width, height), data, width * height * bytesPerPixel, stride);
-                    bitmap.Unlock();
-                    this.img_videoImage.Source = bitmap;
-                });
-            });
-        }
-
-        private void OnVideoLengthCallback(double length)
-        {
-            length = 100;
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                this.mediaProgressBar.Minimum = 0;
-                this.mediaProgressBar.Maximum = length;
-            });
-            Console.WriteLine("길이:" + length);
-        }
-
-        private void OnVideoProgressCallback(double progress)
-        {
-            Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                this.mediaProgressBar.BufferStartValue = progress;
-                this.mediaProgressBar.Value = progress;
-            });
-        }
-
-        private void OnBufferProgressCallback(double progress)
-        {
-            Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                this.mediaProgressBar.BufferEndValue = progress;
-                //Console.WriteLine("버퍼:" + progress);
-            });
-        }
-
-        private void OnBufferStartPosCallback(double progress)
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                //this.slider_buffer.Value = progress;
-            });
-            
-        }
-
-
-
-
-
-
-        private ImageSource? ByteArrayToImageSource(byte[] imageData)
-        {
-            try
-            {
-                using (var ms = new MemoryStream(imageData))
-                {
-                    var image = new BitmapImage();
-                    image.BeginInit();
-                    image.CacheOption = BitmapCacheOption.OnLoad;
-                    image.StreamSource = ms;
-                    image.EndInit();
-                    image.Freeze(); // WPF의 UI 스레드 외부에서 사용 가능하게 만듦
-                    return image;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return null;
-            }
-        }
-
-        private void OnPlayWithSDLButtonClick(object sender, RoutedEventArgs e)
-        {
-            Task.Run(() =>
-            {
-                RunDecodeAndSDLPlayExample();
-            });
-        }
-
-        private void OnPauseButtonClick(object sender, RoutedEventArgs e)
-        {
-            PlayerStatusService.Instance.Pause();
-            this.btn_play.Visibility = Visibility.Visible;
-            this.btn_pause.Visibility = Visibility.Hidden;
-        }
-
-        private object jumpLock = new object();
-
-        private void OnProgressBar_MouseValueChanged(object sender, Common.CustomControl.MouseValueChangedEventArgs e)
-        {
-            Task.Run(()=>
-            {
-                lock (this.jumpLock)
-                {
-                    PlayerStatusService.Instance.JumpPlayTime(e.Value);
-                }
-            });
-        }
-
-        private void OnStopButtonClick(object sender, RoutedEventArgs e)
-        {
-            PlayerStatusService.Instance.Stop();
-        }
-
-        private void Onbtn_fileOpenClick(object sender, RoutedEventArgs e)
-        {
-            OpenFileDialog openFileDialog = new OpenFileDialog();
-            openFileDialog.Filter = "Video Files|*.mp4;*.avi;*.mkv;*.mov;*.wmv|All Files|*.*";
-            if (openFileDialog.ShowDialog() == true)
-            {
-                PlayerStatusService.Instance.FileAddress = openFileDialog.FileName;
-            }
-        }
-
-        private void Onbtn_testClick(object sender, RoutedEventArgs e)
-        {
-            var dxTestWnd = new DirectXTestWindow();
-            dxTestWnd.Show();
-        }
-
-        private void Onbtn_streamOpenClick(object sender, RoutedEventArgs e)
-        {
-        }
-
-        private void OnPlayButtonClick(object sender, RoutedEventArgs e)
-        {
-            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
-            {
-                if (this._isPaused == true)
-                {
-                    this.btn_pause.Visibility = Visibility.Visible;
-                    this.btn_play.Visibility = Visibility.Hidden;
-                }
-                else
-                {
-                    this.btn_pause.Visibility = Visibility.Visible;
-                    this.btn_play.Visibility = Visibility.Hidden;
-                }
-
-                PlayerStatusService.Instance.Play();
-            }
-            else if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
-            {
-                PlayerStatusService.Instance.PlayRtsp();
-            }
+            WeakReferenceMessenger.Default.Register<VideoSourceSetMessage>(this, this.OnVideoSourceSetMessage);
+            WeakReferenceMessenger.Default.Register<PlayserStatusMessage>(this, this.OnPlayserStatusMessage);
         }
     }
 }

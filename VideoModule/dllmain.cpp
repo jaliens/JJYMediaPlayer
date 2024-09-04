@@ -37,14 +37,6 @@ extern "C" {
 
 Player* player = nullptr;
 
-
-
-// 콜백 함수 타입 정의
-//typedef void (*ImgDecodedCallbackFunction)(uint8_t* buf, int size, int width, int height);
-//ImgDecodedCallbackFunction imageDecodedCallback = nullptr;
-
-
-
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
                        LPVOID lpReserved
@@ -62,16 +54,37 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 
-extern "C" __declspec(dllexport) bool createPlayer(HWND hWnd)
+//extern "C" __declspec(dllexport) bool createPlayer(HWND hWnd)
+//{
+//    if (player == nullptr)
+//    {
+//        player = new Player(hWnd);
+//        return true;
+//    }
+//    else
+//    {
+//        return false;
+//    }
+//}
+
+extern "C" __declspec(dllexport) bool createPlayer()
 {
     if (player == nullptr)
     {
-        player = new Player(hWnd);
+        player = new Player();
         return true;
     }
     else
     {
         return false;
+    }
+}
+
+extern "C" __declspec(dllexport) void registerWindowHandle(HWND hWnd)
+{
+    if (player != nullptr)
+    {
+        player->RegisterWindowHandle(hWnd);
     }
 }
 
@@ -241,51 +254,6 @@ extern "C" {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /// <summary>
 /// 재생
 /// </summary>
@@ -298,10 +266,6 @@ extern "C" __declspec(dllexport) void play(const char* filePath)
 
     player->play(filePath);
 }
-
-
-
-
 
 /// <summary>
 /// 일시정지
@@ -316,10 +280,6 @@ extern "C" __declspec(dllexport) void pause()
     player->pause();
 }
 
-
-
-
-
 /// <summary>
 /// 정지
 /// </summary>
@@ -333,10 +293,6 @@ extern "C" __declspec(dllexport) void stop()
     player->stop();
 }
 
-
-
-
-
 /// <summary>
 /// 특정위치로 건너뛰기
 /// </summary>
@@ -348,10 +304,6 @@ extern "C" __declspec(dllexport) void jumpPlayTime(double targetPercent)
     return;
 }
 
-
-
-
-
 /// <summary>
 /// Rtsp재생
 /// </summary>
@@ -362,9 +314,6 @@ extern "C" __declspec(dllexport) void playRtsp(const char* rtspPath)
     return;
 }
 
-
-
-
 /// <summary>
 /// Rtsp정지
 /// </summary>
@@ -374,49 +323,6 @@ extern "C" __declspec(dllexport) void stopRtsp()
 
     return;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /// <summary>
 /// RTSP 플레이어 만들기
@@ -712,87 +618,6 @@ end:
 
     return;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 extern "C" __declspec(dllexport) void RunDecodeAndSDLPlayExample() 
 {

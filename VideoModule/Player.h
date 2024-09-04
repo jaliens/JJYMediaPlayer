@@ -60,6 +60,8 @@ public:
     Player();
     Player(HWND hWnd);
 
+    void RegisterWindowHandle(HWND hWnd);
+
     bool IsCudaSupportedCodec(AVCodecID codecId);
     const AVCodec* GetCudaCodecById(AVCodecID codecId);
 
