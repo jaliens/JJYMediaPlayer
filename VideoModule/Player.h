@@ -60,7 +60,10 @@ public:
     Player();
     Player(HWND hWnd);
 
-    void openFileStream(const char* filePath, int* videoWidth, int* videoHeight);
+    bool IsCudaSupportedCodec(AVCodecID codecId);
+    const AVCodec* GetCudaCodecById(AVCodecID codecId);
+
+    void openFileStream(const char* filePath);
     int startReadThread();
     int startDecodeAndRenderThread();
 
@@ -68,13 +71,13 @@ public:
     int startReadRtspThread();
     int startDecodeAndRenderRtspThread();
 
-    int play();
+    int play(const char* filePath);
     int pause();
     int resume();
     int stop();
     int jumpPlayTime(double seekPercent);
 
-    int playRtsp(HWND hWnd);
+    int playRtsp(const char* filePath);
     int stopRtsp();
 
     void renderFrame();
@@ -92,7 +95,6 @@ public:
     void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
     void Cleanup();
 
-    bool CreateVideoDx11RenderScreen(HWND hwnd, int videoWidth, int videoHeight);
     void DrawDirectXTestRectangle();
 
     DirectX11Renderer* directx11Renderer = nullptr;
@@ -118,6 +120,7 @@ private:
     int64_t progress_percent = 0;
     //int64_t startTime_ms = 0;
     int64_t endTime_ms = 0;
+    int64_t dtsIncrement = 0;//dts가 패킷 당 몇 씩 증가하는지
 
     bool playStarted = false;//패킷 리드 시작됨 여부
     int64_t playStartedDts = 0;//패킷 리드 시작 시점의 dts
@@ -140,6 +143,8 @@ private:
     bool isWaitingAfterCommand = false;//명령 완료 대기 플래그
     bool endOfDecoding = false;//디코딩 작업 중지 플래그
     bool isReading = true;
+    bool isFirstFrameRendered = false;
+    bool isTimeToSkipFrame = false;
 
     /*std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;
     std::queue<AVFrame*, std::list<AVFrame*>> videoRenderingQueue;*/
@@ -190,7 +195,7 @@ private:
     std::condition_variable readingPauseCondVar;
     std::condition_variable decodingPauseCondVar;
     std::condition_variable waitingAfterCommandFlagCondVar;
-    const int MAX_PACKET_BUFFER_SIZE = 1060;//패킷버퍼 최대 사이즈
+    const int MAX_PACKET_BUFFER_SIZE = 60;//패킷버퍼 최대 사이즈
     const int CAN_POP_PACKET_BUFFER_SIZE = 30;//디코딩을 시작할 수 있는 최소 패킷 버퍼사이즈 
 
 

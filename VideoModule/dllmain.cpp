@@ -62,11 +62,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 
-extern "C" __declspec(dllexport) bool CreatePlayer()
+extern "C" __declspec(dllexport) bool createPlayer(HWND hWnd)
 {
     if (player == nullptr)
     {
-        player = new Player();
+        player = new Player(hWnd);
         return true;
     }
     else
@@ -75,76 +75,64 @@ extern "C" __declspec(dllexport) bool CreatePlayer()
     }
 }
 
-extern "C" __declspec(dllexport) bool CreateDx11RenderScreenOnPlayer(HWND hWnd, int videoWidth, int videoHeight)
-{
-    if (player == nullptr)
-    {
-        return false;
-    }
-    else
-    {
-        return player->CreateVideoDx11RenderScreen(hWnd, videoWidth, videoHeight);
-    }
-}
-
 
 // 콜백 함수 등록
-extern "C" __declspec(dllexport) void RegisterOnImgDecodeCallback(OnImgDecodeCallbackFunction callback) 
+extern "C" __declspec(dllexport) void registerOnImgDecodeCallback(OnImgDecodeCallbackFunction callback) 
 {
     player->RegisterOnImageDecodeCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnVideoLengthCallback(OnVideoLengthCallbackFunction callback)
 {
     player->RegisterOnVideoLengthCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnVideoProgressCallback(OnVideoProgressCallbackFunction callback)
 {
     player->RegisterOnVideoProgressCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnBufferProgressCallback(OnBufferProgressCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnBufferProgressCallback(OnBufferProgressCallbackFunction callback)
 {
     player->RegisterOnBufferProgressCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnBufferStartPosCallback(OnBufferStartPosCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnBufferStartPosCallback(OnBufferStartPosCallbackFunction callback)
 {
     player->RegisterOnBufferStartPosCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnStartCallback(OnStartCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnStartCallback(OnStartCallbackFunction callback)
 {
     player->RegisterOnStartCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnPauseCallback(OnPauseCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnPauseCallback(OnPauseCallbackFunction callback)
 {
     player->RegisterOnPauseCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnResumeCallback(OnResumeCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnResumeCallback(OnResumeCallbackFunction callback)
 {
     player->RegisterOnResumeCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnStopCallback(OnStopCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnStopCallback(OnStopCallbackFunction callback)
 {
     player->RegisterOnStopCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
 {
     player->RegisterOnRenderTimingCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
+extern "C" __declspec(dllexport) void registerOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
 {
     player->RegisterOnVideoSizeCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void Cleanup()
+extern "C" __declspec(dllexport) void cleanup()
 {
     player->Cleanup();
 }
@@ -153,7 +141,7 @@ extern "C" __declspec(dllexport) void Cleanup()
 
 
 
-extern "C" __declspec(dllexport) void RenderTestRectangleDx11() {
+extern "C" __declspec(dllexport) void renderTestRectangleDx11() {
     if (player == nullptr) {
         return;
     }
@@ -295,33 +283,20 @@ extern "C" {
 
 
 
-/// <summary>
-/// 파일 스트림 열기
-/// </summary>
-extern "C" __declspec(dllexport) void OpenFileStream(const char* filePath, int* videoWidth, int* videoHeight)
-{
-    if (player == nullptr)
-    {
-        return;
-    }
-
-    player->openFileStream(filePath, videoWidth, videoHeight);
-
-    return;
-}
-
-
 
 
 
 /// <summary>
 /// 재생
 /// </summary>
-extern "C" __declspec(dllexport) void Play()
+extern "C" __declspec(dllexport) void play(const char* filePath)
 {
-    player->play();
+    if (player == nullptr)
+    {
+        return;
+    }
 
-    return;
+    player->play(filePath);
 }
 
 
@@ -331,11 +306,14 @@ extern "C" __declspec(dllexport) void Play()
 /// <summary>
 /// 일시정지
 /// </summary>
-extern "C" __declspec(dllexport) void Pause()
+extern "C" __declspec(dllexport) void pause()
 {
-    player->pause();
+    if (player == nullptr)
+    {
+        return;
+    }
 
-    return;
+    player->pause();
 }
 
 
@@ -345,11 +323,14 @@ extern "C" __declspec(dllexport) void Pause()
 /// <summary>
 /// 정지
 /// </summary>
-extern "C" __declspec(dllexport) void Stop()
+extern "C" __declspec(dllexport) void stop()
 {
-    player->stop();
+    if (player == nullptr)
+    {
+        return;
+    }
 
-    return;
+    player->stop();
 }
 
 
@@ -359,7 +340,7 @@ extern "C" __declspec(dllexport) void Stop()
 /// <summary>
 /// 특정위치로 건너뛰기
 /// </summary>
-extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
+extern "C" __declspec(dllexport) void jumpPlayTime(double targetPercent)
 {
 
     player->jumpPlayTime(targetPercent);
@@ -374,9 +355,9 @@ extern "C" __declspec(dllexport) void JumpPlayTime(double targetPercent)
 /// <summary>
 /// Rtsp재생
 /// </summary>
-extern "C" __declspec(dllexport) void playRtsp(HWND hWnd)
+extern "C" __declspec(dllexport) void playRtsp(const char* rtspPath)
 {
-    player->playRtsp(hWnd);
+    player->playRtsp(rtspPath);
 
     return;
 }

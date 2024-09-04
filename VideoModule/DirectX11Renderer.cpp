@@ -505,7 +505,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-extern "C" __declspec(dllexport) HWND CreateDirectXWindow(HINSTANCE hInstance, int width, int height, HWND parentHwnd) {
+extern "C" __declspec(dllexport) HWND createDirectXWindow(HINSTANCE hInstance, int width, int height, HWND parentHwnd) {
     // 윈도우 클래스 등록
     const wchar_t CLASS_NAME[] = L"Window Class";
 

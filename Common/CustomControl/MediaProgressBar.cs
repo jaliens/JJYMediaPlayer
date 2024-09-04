@@ -184,7 +184,7 @@ namespace Common.CustomControl
                 {
                     X = bufferStartX,
                     Y = barY,
-                    Width = bufferBarWidth,
+                    Width = bufferBarWidth == 0 ? 0 : bufferBarWidth,
                     Height = this.BarThickness,
                 };
                 drawingContext.DrawRectangle(this.BufferBrush, null, bufferRect);

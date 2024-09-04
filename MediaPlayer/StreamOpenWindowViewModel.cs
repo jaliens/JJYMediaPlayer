@@ -44,7 +44,6 @@ namespace MediaPlayer
 
         private void ProcConfirmRTSPAddressCommand(object? obj)
         {
-            PlayerStatusService.Instance.FileAddress = null;
             PlayerStatusService.Instance.RtspAddress = this.RTSPAddress;
             App.DialogService.CloseDialog(nameof(StreamOpenWindowViewModel),true);
         }
