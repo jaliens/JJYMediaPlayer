@@ -103,7 +103,7 @@
                 VerticalAlignment="Center"
                 HorizontalAlignment="Stretch"
                 Content="📹"
-                ToolTip="스트림주소열기"
+                ToolTip="RTSP스트림 열기"
                 Command="{Binding ShowStreamOpenWindowCommand}"/>
         </Grid>
 

@@ -272,6 +272,8 @@ void Player::readRtspThreadTask()
                 packet->flags != AV_PKT_FLAG_KEY)
             {
                 //키프레임 없는 일반 프레임은 의미가 없으므로 버림
+                av_packet_unref(packet);
+                av_packet_free(&packet);
             }
             //첫 키프레임 발견
             else if (isFirstKeyFrameFound == false &&
@@ -378,6 +380,7 @@ void Player::readRtspThreadTask()
                         printf("err_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
                     }
                 }
+
                 tempBuffer.clear();
 
                 if (this->isReading == false)
@@ -453,6 +456,8 @@ void Player::videoDecodeAndRenderRtspThreadTask()
 
             if (packet->stream_index != this->video_stream_idx)
             {
+                av_packet_unref(packet);
+                av_packet_free(&packet);
                 continue;
             }
 
@@ -469,13 +474,14 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                 {
                     if (this->endOfDecoding == true)
                     {
+                        av_packet_unref(packet);
+                        av_packet_free(&packet);
                         return;
                     }
 
                     int ret = avcodec_receive_frame(this->video_dec_ctx, frame);
                     if (ret < 0)
                     {
-
                         if (ret == AVERROR_EOF)
                         {
                             fprintf(stderr, "               디코드 결과 EOF\n");
@@ -502,6 +508,7 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                         if (isFirstFrameRendered == false)
                         {
                             this->directx11Renderer->Render(frame);
+                            av_frame_unref(frame);
                             isFirstFrameRendered = true;
                             firstFramePts = frame->pts;
                             steady_clock::time_point now = std::chrono::high_resolution_clock::now();
@@ -522,7 +529,7 @@ void Player::videoDecodeAndRenderRtspThreadTask()
 
                                 //directX11 랜더링
                                 this->directx11Renderer->Render(frame);
-
+                                av_frame_unref(frame);
                                 printf("         render frame pts : %lld\n", frame->pts);
                             }
                             else 
@@ -834,6 +841,8 @@ void Player::readThreadTask()
                 packet->flags != AV_PKT_FLAG_KEY)
             {
                 //키프레임 없는 일반 프레임은 의미가 없으므로 버림
+                av_packet_unref(packet);
+                av_packet_free(&packet);
             }
             //첫 키프레임 발견
             else if (isFirstKeyFrameFound == false && 
@@ -1025,6 +1034,20 @@ void Player::videoDecodeAndRenderThreadTask()
         }
         if (this->endOfDecoding == true)
         {
+            while (true)
+            {
+                AVPacket* packet = nullptr;
+                std::unique_lock<std::mutex> lock(this->bufferMutex);
+                if (this->packetBuffer.empty() == true)
+                {
+                    break;
+                }
+                packet = this->packetBuffer.front();
+                this->packetBuffer.pop();
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                bufferCondVar.notify_all();////
+            }
             return;
         }
 
@@ -1042,6 +1065,20 @@ void Player::videoDecodeAndRenderThreadTask()
         }
         if (this->endOfDecoding == true)
         {
+            while (true)
+            {
+                AVPacket* packet = nullptr;
+                std::unique_lock<std::mutex> lock(this->bufferMutex);
+                if (this->packetBuffer.empty() == true)
+                {
+                    break;
+                }
+                packet = this->packetBuffer.front();
+                this->packetBuffer.pop();
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                bufferCondVar.notify_all();////
+            }
             return;
         }
 
@@ -1060,6 +1097,20 @@ void Player::videoDecodeAndRenderThreadTask()
             }
             if (this->endOfDecoding == true)
             {
+                while (true)
+                {
+                    AVPacket* packet = nullptr;
+                    std::unique_lock<std::mutex> lock(this->bufferMutex);
+                    if (this->packetBuffer.empty() == true)
+                    {
+                        break;
+                    }
+                    packet = this->packetBuffer.front();
+                    this->packetBuffer.pop();
+                    av_packet_unref(packet);
+                    av_packet_free(&packet);
+                    bufferCondVar.notify_all();////
+                }
                 return;
             }
 
@@ -1077,6 +1128,8 @@ void Player::videoDecodeAndRenderThreadTask()
 
             if (packet->stream_index != this->video_stream_idx)
             {
+                av_packet_unref(packet);
+                av_packet_free(&packet);
                 continue;
             }
 
@@ -1128,6 +1181,23 @@ void Player::videoDecodeAndRenderThreadTask()
                     }
                     if (this->endOfDecoding == true)
                     {
+                        av_packet_unref(packet);
+                        av_packet_free(&packet);
+
+                        while (true)
+                        {
+                            AVPacket* packet = nullptr;
+                            std::unique_lock<std::mutex> lock(this->bufferMutex);
+                            if (this->packetBuffer.empty() == true)
+                            {
+                                break;
+                            }
+                            packet = this->packetBuffer.front();
+                            this->packetBuffer.pop();
+                            av_packet_unref(packet);
+                            av_packet_free(&packet);
+                            bufferCondVar.notify_all();////
+                        }
                         return;
                     }
 
@@ -1136,6 +1206,7 @@ void Player::videoDecodeAndRenderThreadTask()
                     {
                         while (avcodec_receive_frame(video_dec_ctx, frame) >= 0)
                         {
+                            av_frame_unref(frame);
                             printf("dump frame pts:&lld", frame->pts);
                         }
                         this->isTimeToSkipFrame = false;
@@ -1143,10 +1214,8 @@ void Player::videoDecodeAndRenderThreadTask()
                     }
                     
                     int ret = avcodec_receive_frame(video_dec_ctx, frame);
-                    //printf("               디코딩된 프레임 처리 PTS:%d\n", (int)frame->pts);
                     if (ret < 0)
                     {
-                        //av_frame_free(&frame);
                         av_frame_unref(frame);
 
                         if (ret == AVERROR_EOF)
@@ -1225,6 +1294,21 @@ void Player::videoDecodeAndRenderThreadTask()
         }
 
         bufferCondVar.notify_all();
+    }
+
+    while(true)
+    {
+        AVPacket* packet = nullptr;
+        std::unique_lock<std::mutex> lock(this->bufferMutex);
+        if (this->packetBuffer.empty() == true)
+        {
+            break;
+        }
+        packet = this->packetBuffer.front();
+        this->packetBuffer.pop();
+        av_packet_unref(packet);
+        av_packet_free(&packet);
+        bufferCondVar.notify_all();////
     }
 }
 
@@ -1372,7 +1456,7 @@ void Player::progressCheckingThreadTask()
 {
     while (1)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         if (this->decodeAndRenderThread != nullptr &&
             this->decodeAndRenderThread->joinable() == true)
@@ -1884,6 +1968,9 @@ int Player::jumpPlayTime(double seekPercent)
             std::unique_lock<std::mutex> lock(bufferMutex);
             while (!this->packetBuffer.empty())
             {
+                AVPacket* packet = this->packetBuffer.front();
+                av_packet_unref(packet);
+                av_packet_free(&packet);
                 this->packetBuffer.pop();
             }
         }
