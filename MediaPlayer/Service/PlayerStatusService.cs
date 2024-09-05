@@ -241,6 +241,13 @@ namespace MediaPlayer.Service
             GC.KeepAlive(this._stopCallback);
         }
 
+        public void RegisterOnSeekCallback(OnSeekCallbackFunction callback)
+        {
+            this._seekCallback = callback;
+            registerOnSeekCallback(callback);
+            GC.KeepAlive(this._seekCallback);
+        }
+
         public void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
         {
             this._renderTimingCallback = callback;
@@ -279,9 +286,13 @@ namespace MediaPlayer.Service
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void OnStopCallbackFunction();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void OnSeekCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void OnRenderTimingCallbackFunction();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void OnVideoSizeCallbackFunction(int width, int height);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void OnCommandCompleteCallbackFunction();
 
 
         private ImageCallback? _imageCallBack = null;
@@ -293,8 +304,10 @@ namespace MediaPlayer.Service
         private OnPauseCallbackFunction? _pauseCallback = null;
         private OnResumeCallbackFunction? _resumeCallback = null;
         private OnStopCallbackFunction? _stopCallback = null;
+        private OnSeekCallbackFunction? _seekCallback = null;
         private OnRenderTimingCallbackFunction? _renderTimingCallback = null;
         private OnVideoSizeCallbackFunction? _videoSizeCallback = null;
+        private OnCommandCompleteCallbackFunction? _commandCompleteCallback = null;
 
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
@@ -376,10 +389,16 @@ namespace MediaPlayer.Service
         private static extern void registerOnStopCallback(OnStopCallbackFunction callback);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void registerOnSeekCallback(OnSeekCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void registerOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void registerOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void registerOnCommandCompleteCallback(OnCommandCompleteCallbackFunction callback);
 
 
 

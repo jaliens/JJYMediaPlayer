@@ -54,19 +54,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 
-//extern "C" __declspec(dllexport) bool createPlayer(HWND hWnd)
-//{
-//    if (player == nullptr)
-//    {
-//        player = new Player(hWnd);
-//        return true;
-//    }
-//    else
-//    {
-//        return false;
-//    }
-//}
-
 extern "C" __declspec(dllexport) bool createPlayer()
 {
     if (player == nullptr)
@@ -120,6 +107,11 @@ extern "C" __declspec(dllexport) void registerOnStartCallback(OnStartCallbackFun
     player->RegisterOnStartCallback(callback);
 }
 
+extern "C" __declspec(dllexport) void registerOnSeekCallback(OnSeekCallbackFunction callback)
+{
+    player->RegisterOnSeekCallback(callback);
+}
+
 extern "C" __declspec(dllexport) void registerOnPauseCallback(OnPauseCallbackFunction callback)
 {
     player->RegisterOnPauseCallback(callback);
@@ -144,6 +136,11 @@ extern "C" __declspec(dllexport) void registerOnVideoSizeCallback(OnVideoSizeCal
 {
     player->RegisterOnVideoSizeCallback(callback);
 }
+
+
+
+
+
 
 extern "C" __declspec(dllexport) void cleanup()
 {
@@ -192,10 +189,6 @@ extern "C" {
             return nullptr;
         }
         return renderer;
-    }
-
-    __declspec(dllexport) void DestroyRenderer_DX9(DirectX9Renderer* renderer) {
-        delete renderer;
     }
 
     __declspec(dllexport) void RenderRectangle_DX9(DirectX9Renderer* renderer) {

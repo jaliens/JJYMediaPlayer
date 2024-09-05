@@ -79,6 +79,48 @@ namespace MediaPlayer
             }
         }
 
+        private bool _IsControlEnabled = true;
+        public bool IsControlEnabled
+        {
+            get
+            {
+                return this._IsControlEnabled;
+            }
+            set
+            {
+                this._IsControlEnabled = value;
+                SetProperty(nameof(this.IsControlEnabled));
+            }
+        }
+
+        private bool _IsShowPlayButton = true;
+        public bool IsShowPlayButton
+        {
+            get
+            {
+                return this._IsShowPlayButton;
+            }
+            set
+            {
+                this._IsShowPlayButton = value;
+                SetProperty(nameof(this.IsShowPlayButton));
+            }
+        }
+
+        private bool _IsShowPauseButton = true;
+        public bool IsShowPauseButton
+        {
+            get
+            {
+                return this._IsShowPauseButton;
+            }
+            set
+            {
+                this._IsShowPauseButton = value;
+                SetProperty(nameof(this.IsShowPauseButton));
+            }
+        }
+
 
         public ICommand? LoadedCommand { get; set; } = null;
         public ICommand? ShowFileOpenWindowCommand { get; set; } = null;
@@ -106,6 +148,7 @@ namespace MediaPlayer
 
         private void ProcSeekCommand(object? obj)
         {
+            this.IsControlEnabled = false;
             var arg = obj as MouseValueChangedEventArgs;
             if (arg == null)
             {
@@ -122,9 +165,11 @@ namespace MediaPlayer
             PlayerStatusService.Instance.RegisterOnVideoLengthCallback(this.OnVideoLengthCallback);
             PlayerStatusService.Instance.RegisterOnVideoProgressCallback(this.OnVideoProgressCallback);
             PlayerStatusService.Instance.RegisterOnBufferProgressCallback(this.OnBufferProgressCallback);
+            PlayerStatusService.Instance.RegisterOnStartCallback(this.OnStartCallback);
             PlayerStatusService.Instance.RegisterOnPauseCallback(this.OnPauseCallback);
             PlayerStatusService.Instance.RegisterOnResumeCallback(this.OnResumeCallback);
             PlayerStatusService.Instance.RegisterOnStopCallback(this.OnStopCallback);
+            PlayerStatusService.Instance.RegisterOnSeekCallback(this.OnSeekCallback);
             PlayerStatusService.Instance.RegisterOnRenderTimingCallback(this.OnRenderTimingCallback);
         }
 
@@ -149,16 +194,41 @@ namespace MediaPlayer
             this.ProgressBarBufferRightBoundary = progress;
         }
 
+        private void OnStartCallback()
+        {
+            this.IsShowPauseButton = true;
+            this.IsShowPlayButton = false;
+            this.IsControlEnabled = true;
+        }
+
         private void OnPauseCallback()
         {
+            this.IsShowPlayButton = true;
+            this.IsShowPauseButton = false;
+            this.IsControlEnabled = true;
         }
 
         private void OnResumeCallback()
         {
+            this.IsShowPauseButton = true;
+            this.IsShowPlayButton = false;
+            this.IsControlEnabled = true;
         }
 
         private void OnStopCallback()
         {
+            this.ProgressBarBufferLeftBoundary = 0;
+            this.ProgressBarBufferRightBoundary = 0;
+            this.ProgressBarValue = 0;
+
+            this.IsShowPlayButton = true;
+            this.IsShowPauseButton = false;
+            this.IsControlEnabled = true;
+        }
+
+        private void OnSeekCallback()
+        {
+            this.IsControlEnabled = true;
         }
 
         private void OnRenderTimingCallback()
@@ -167,7 +237,28 @@ namespace MediaPlayer
 
         private void ProcStopCommand(object obj)
         {
+            this.IsControlEnabled = false;
             PlayerStatusService.Instance.Stop();
+        }
+
+        private void ProcPauseCommand(object? obj)
+        {
+            this.IsControlEnabled = false;
+            PlayerStatusService.Instance.Pause();
+        }
+
+        private void ProcPlayCommand(object? obj)
+        {
+            this.IsControlEnabled = false;
+
+            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
+            {
+                PlayerStatusService.Instance.Play();
+            }
+            else if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
+            {
+                PlayerStatusService.Instance.PlayRtsp();
+            }
         }
 
         private void ProcShowFileOpenWindowCommand(object? obj)
@@ -177,23 +268,6 @@ namespace MediaPlayer
             if (openFileDialog.ShowDialog() == true)
             {
                 PlayerStatusService.Instance.FileAddress = openFileDialog.FileName;
-            }
-        }
-
-        private void ProcPauseCommand(object? obj)
-        {
-            PlayerStatusService.Instance.Pause();
-        }
-
-        private void ProcPlayCommand(object? obj)
-        {
-            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
-            {
-                PlayerStatusService.Instance.Play();
-            }
-            else if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
-            {
-                PlayerStatusService.Instance.PlayRtsp();
             }
         }
 

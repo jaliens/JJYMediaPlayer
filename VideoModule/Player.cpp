@@ -784,7 +784,9 @@ void Player::readThreadTask()
             this->isWaitingAfterCommand = false;
             this->readingPauseCondVar.notify_all();
             //printf("    리드가 노티파이\n");
-            this->readingPauseCondVar.wait(readingMutexLock, [this] { return (this->isReadingPaused == false || this->isReading == false); });
+            this->readingPauseCondVar.wait(readingMutexLock, [this] { 
+                return (this->isReadingPaused == false || this->isReading == false); 
+                });
         }
 
         if (this->isReading == false)
@@ -792,6 +794,17 @@ void Player::readThreadTask()
             break;
         }
 
+        //seek 요청이 있었다면 기존에 읽은 패킷 확실히 다 지우기
+        if (this->isToDumpPrevPacket == true)
+        {
+            for (AVPacket* p : tempBuffer)
+            {
+                av_packet_unref(p);
+                av_packet_free(&p);
+            }
+            tempBuffer.clear();
+            this->isToDumpPrevPacket = false;
+        }
 
         AVPacket* packet = av_packet_alloc();
         //printf("푸시푸시푸시.................\n");
@@ -813,12 +826,7 @@ void Player::readThreadTask()
 
                 //프로그래스바에서 몇%에 해당하는 시간인지 계산
                 double progressPercent = (double)packet->dts * this->videoTimeBase_ms / this->duration_ms * 100.0;
-
-                if (this->onBufferProgressCallback != nullptr)
-                {
-                    //버퍼 프로그래스바 갱신
-                    this->onBufferProgressCallback(progressPercent);
-                }
+                this->bufferRrogress_percent = progressPercent;
             }
 
             //첫 키프레임 발견 전 일반 프레임
@@ -1126,7 +1134,10 @@ void Player::videoDecodeAndRenderThreadTask()
                     //일시정지 되어서 다시 시작해야하는 경우
                     if (this->isTimeToSkipFrame == true)
                     {
-                        while(avcodec_receive_frame(video_dec_ctx, frame) >= 0)
+                        while (avcodec_receive_frame(video_dec_ctx, frame) >= 0)
+                        {
+                            printf("dump frame pts:&lld", frame->pts);
+                        }
                         this->isTimeToSkipFrame = false;
                         break;
                     }
@@ -1200,6 +1211,7 @@ void Player::videoDecodeAndRenderThreadTask()
                         //프로그래스바 갱신
                         this->progress_percent = (double)frame->pts * videoTimeBase_ms / this->duration_ms * 100.0;
                         fprintf(stderr, "         pts : %lld         프로그래스 : %lld \n", frame->pts, this->progress_percent);
+                        
                     }
                     av_frame_unref(frame);
 
@@ -1355,17 +1367,35 @@ void Player::videoDecodeAndRenderThreadTask()
 
 
 
-//0.5초 마다 프로그래스 체크
+//프로그래스 체크
 void Player::progressCheckingThreadTask()
 {
     while (1)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        if (this->isPaused == false)
+
+        if (this->decodeAndRenderThread != nullptr &&
+            this->decodeAndRenderThread->joinable() == true)
         {
-            this->onVideoProgressCallback(this->progress_percent);
+            if (this->isPaused == false)
+            {
+                this->onVideoProgressCallback(this->progress_percent);
+
+
+            }
+
+            this->bufferCondVar.notify_all();
         }
-        this->bufferCondVar.notify_all();
+
+        if (this->readThread != nullptr &&
+            this->readThread->joinable() == true)
+        {
+            if (this->onBufferProgressCallback != nullptr)
+            {
+                //버퍼 프로그래스바 갱신
+                this->onBufferProgressCallback(this->bufferRrogress_percent);
+            }
+        }
     }
 }
 
@@ -1492,6 +1522,10 @@ int Player::playRtsp(const char* rtspPath)
     this->startReadRtspThread();
     this->startDecodeAndRenderRtspThread();
 
+    if (this->onStartCallbackFunction != nullptr)
+    {
+        this->onStartCallbackFunction();
+    }
     return 0;
 }
 
@@ -1539,20 +1573,17 @@ int Player::stopRtsp()
     this->endOfDecoding = false;
     this->isReading = true;
 
-    //콜백 호출
-    if (this->onStopCallbackFunction != nullptr)
-    {
-        this->onStopCallbackFunction();
-    }
-
-
     if (this->directx11Renderer != nullptr)
     {
         this->directx11Renderer->Cleanup();
     }
 
     printf("stop return\n");
-
+    //콜백 호출
+    if (this->onStopCallbackFunction != nullptr)
+    {
+        this->onStopCallbackFunction();
+    }
     return 0;
 }
 
@@ -1661,7 +1692,10 @@ int Player::play(const char* filePath)
     }
 
     printf("play return\n");
-
+    if (this->onStartCallbackFunction != nullptr)
+    {
+        this->onStartCallbackFunction();
+    }
     return 0;
 }
 
@@ -1679,13 +1713,11 @@ int Player::pause()
 
     this->isPaused = true;
 
+    printf("pause return\n");
     if (this->onPauseCallbackFunction != nullptr)
     {
         this->onPauseCallbackFunction();
     }
-
-    printf("pause return\n");
-
     return 0;
 }
 
@@ -1697,13 +1729,11 @@ int Player::resume()
 
     this->isPaused = false;
 
+    printf("resume return\n");
     if (this->onResumeCallbackFunction != nullptr)
     {
         this->onResumeCallbackFunction();
     }
-
-    printf("resume return\n");
-
     return 0;
 }
 
@@ -1753,19 +1783,17 @@ int Player::stop()
     this->endOfDecoding = false;
     this->isReading = true;
 
-    //콜백 호출
-    if (this->onStopCallbackFunction != nullptr)
-    {
-        this->onStopCallbackFunction();
-    }
-
     if (this->directx11Renderer != nullptr)
     {
         this->directx11Renderer->Cleanup();
     }
 
+    //콜백 호출
+    if (this->onStopCallbackFunction != nullptr)
+    {
+        this->onStopCallbackFunction();
+    }
     printf("stop return\n");
-
     return 0;
 }
 
@@ -1776,6 +1804,10 @@ int Player::jumpPlayTime(double seekPercent)
 
     if (duration_ms == 0)
     {
+        if (this->onSeekCallbackFunction != nullptr)
+        {
+            this->onSeekCallbackFunction();
+        }
         return -1;
     }
 
@@ -1806,6 +1838,10 @@ int Player::jumpPlayTime(double seekPercent)
 
         //SEEK 명령
         int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
+        avcodec_flush_buffers(this->video_dec_ctx);
+
+        //이전에 읽은 패킷은 비우도록
+        this->isToDumpPrevPacket = true;
 
         //리드 쓰레드 재개
         this->isReadingPaused = false;
@@ -1816,6 +1852,10 @@ int Player::jumpPlayTime(double seekPercent)
     {
         if (this->decodeAndRenderThread->joinable() == false || this->readThread->joinable() == false)
         {
+            if (this->onSeekCallbackFunction != nullptr)
+            {
+                this->onSeekCallbackFunction();
+            }
             return -1;
         }
 
@@ -1855,6 +1895,9 @@ int Player::jumpPlayTime(double seekPercent)
         int result = av_seek_frame(this->formatContext, video_stream_idx, seekTimeStamp, AVSEEK_FLAG_BACKWARD);
         avcodec_flush_buffers(this->video_dec_ctx);
         
+        //이전에 읽은 패킷은 비우도록
+        this->isToDumpPrevPacket = true;
+
         //리드 쓰레드 재개
         this->isReadingPaused = false;
         this->readingPauseCondVar.notify_all();
@@ -1865,6 +1908,10 @@ int Player::jumpPlayTime(double seekPercent)
         this->isPaused = false;
     }
 
+    if (this->onSeekCallbackFunction != nullptr)
+    {
+        this->onSeekCallbackFunction();
+    }
     return 0;
 }
 
@@ -1994,6 +2041,11 @@ void Player::RegisterOnImageDecodeCallback(OnImgDecodeCallbackFunction callback)
 void Player::RegisterOnStartCallback(OnStartCallbackFunction callback)
 {
     this->onStartCallbackFunction = callback;
+}
+
+void Player::RegisterOnSeekCallback(OnSeekCallbackFunction callback)
+{
+    this->onSeekCallbackFunction = callback;
 }
 
 void Player::RegisterOnPauseCallback(OnPauseCallbackFunction callback)

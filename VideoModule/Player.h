@@ -48,6 +48,7 @@ typedef double (*OnVideoProgressCallbackFunction)(double progress);
 typedef double (*OnBufferProgressCallbackFunction)(double progress);
 typedef double (*OnBufferStartPosCallbackFunction)(double progress);
 typedef void (*OnStartCallbackFunction)();
+typedef void (*OnSeekCallbackFunction)();
 typedef void (*OnPauseCallbackFunction)();
 typedef void (*OnResumeCallbackFunction)();
 typedef void (*OnStopCallbackFunction)();
@@ -86,13 +87,14 @@ public:
 
     void RegisterOnVideoLengthCallback(OnVideoLengthCallbackFunction callback);
     void RegisterOnVideoProgressCallback(OnVideoProgressCallbackFunction callback);
-    void RegisterOnBufferProgressCallback(OnVideoProgressCallbackFunction callback);
+    void RegisterOnBufferProgressCallback(OnBufferProgressCallbackFunction callback);
     void RegisterOnBufferStartPosCallback(OnBufferStartPosCallbackFunction callback);
     void RegisterOnImageDecodeCallback(OnImgDecodeCallbackFunction callback);
     void RegisterOnStartCallback(OnStartCallbackFunction callback);
+    void RegisterOnSeekCallback(OnSeekCallbackFunction callback);
     void RegisterOnPauseCallback(OnPauseCallbackFunction callback);
     void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
-    void RegisterOnStopCallback(OnResumeCallbackFunction callback);
+    void RegisterOnStopCallback(OnStopCallbackFunction callback);
     void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
     void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
     void Cleanup();
@@ -119,8 +121,8 @@ private:
     int64_t duration_ms = 0;
     int64_t start_time = 0;//스트림의 시작 시각(time_base 단위 즉, PTS와 DTS의 단위)
     int64_t progress_ms = 0;
-    int64_t progress_percent = 0;
-    //int64_t startTime_ms = 0;
+    int64_t progress_percent = 0;//재생이 몇 % 진행되었는지 값
+    int64_t bufferRrogress_percent = 0;//패킷 버퍼가 몇 % 찼는지 값(재생 시간 기준)
     int64_t endTime_ms = 0;
     int64_t dtsIncrement = 0;//dts가 패킷 당 몇 씩 증가하는지
 
@@ -138,7 +140,6 @@ private:
     const char* inputSourcePath = "dddd.avi";
     bool isStreamSourceOpen = false;
 
-    //bool isRenderStarted = false;
     bool isDecodingPaused = false;
     bool isReadingPaused = false;
     bool isPaused = false;
@@ -146,10 +147,14 @@ private:
     bool endOfDecoding = false;//디코딩 작업 중지 플래그
     bool isReading = true;
     bool isFirstFrameRendered = false;
-    bool isTimeToSkipFrame = false;
+    bool isTimeToSkipFrame = false;//디코딩 쓰레드가 디코딩 된 프레임의 랜더링을 포기하고 다시 패킷을 디코딩 하도록하는 플래그
+    bool isToDumpPrevPacket = false;//이전에 읽은 패킷을 비우도록하는 플래그
 
-    /*std::queue<AVPacket*, std::list<AVPacket*>> decodingQueue;
-    std::queue<AVFrame*, std::list<AVFrame*>> videoRenderingQueue;*/
+    bool isPlayCommandFlag = false;
+    bool isPauseCommandFlag = false;
+    bool isStopCommandFlag = false;
+    bool isSeekCommandFlag = false;
+
     std::queue<AVPacket*> packetBuffer;//정렬된 패킷이 들어갈 버퍼
 
 
@@ -179,6 +184,7 @@ private:
     OnBufferProgressCallbackFunction onBufferProgressCallback = nullptr;
     OnBufferStartPosCallbackFunction onBufferStartPosCallback = nullptr;
     OnStartCallbackFunction onStartCallbackFunction = nullptr;
+    OnSeekCallbackFunction onSeekCallbackFunction = nullptr;
     OnPauseCallbackFunction onPauseCallbackFunction = nullptr;
     OnResumeCallbackFunction onResumeCallbackFunction = nullptr;
     OnStopCallbackFunction onStopCallbackFunction = nullptr;
@@ -207,7 +213,6 @@ private:
 
 
     void readThreadTask();
-    /*void videoRenderThreadTask();*/
     void videoDecodeAndRenderThreadTask();
     void progressCheckingThreadTask();
 

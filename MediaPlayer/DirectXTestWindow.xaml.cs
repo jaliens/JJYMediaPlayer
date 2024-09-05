@@ -36,17 +36,6 @@ namespace MediaPlayer
             this.SizeChanged += this.MainWindow_SizeChanged;
         }
 
-        //[DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        //private static extern IntPtr CreateRenderer(IntPtr hwnd);
-
-        //[DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        //private static extern void DestroyRenderer(IntPtr renderer);
-
-        //[DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        //private static extern void DoRenderFrame(IntPtr renderer);
-
-
-
 
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]

@@ -22,11 +22,23 @@ namespace Common.CustomControl
         static MediaProgressBar()
         {
             //RangeBase의 기본 스타일이 아닌 MediaProgressBar의 스타일을 사용하기 위해 호출
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(MediaProgressBar), new FrameworkPropertyMetadata(typeof(MediaProgressBar)));
+            DefaultStyleKeyProperty.OverrideMetadata(typeof(MediaProgressBar), 
+                new FrameworkPropertyMetadata(typeof(MediaProgressBar)));
+
+            //부모클래스의 원본 ValueProperty의 메타데이터를 오버라이드하기
+            ValueProperty.OverrideMetadata(typeof(MediaProgressBar),
+                new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+            MinimumProperty.OverrideMetadata(typeof(MediaProgressBar),
+                new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+            MaximumProperty.OverrideMetadata(typeof(MediaProgressBar),
+                new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
         }
 
 
         #region property
+
         public static readonly DependencyProperty BufferStartValueProperty =
             DependencyProperty.Register(
                 "BufferStartValue",
