@@ -1,10 +1,12 @@
 ﻿using Common.Mvvm;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Forms;
 
 namespace MediaPlayer.Mvvm
 {
@@ -30,8 +32,31 @@ namespace MediaPlayer.Mvvm
                 this._viewModelNameWindowPair.TryAdd(viewModelName, window);
             }
 
+            window.Closing += this.OnClosing;
+
             bool? result = window?.ShowDialog();
             dialogResult = result != null ? (bool)result : false;
+        }
+
+        private void OnClosing(object? sender, CancelEventArgs e)
+        {
+            if (sender is Window window == false)
+            {
+                return;
+            }
+            var viewModelName = window.DataContext?.GetType().Name;
+            if (string.IsNullOrWhiteSpace(viewModelName))
+            {
+                return;
+            }
+
+            if (this._viewModelNameWindowPair.ContainsKey(viewModelName) == false)
+            {
+                return;
+            }
+            this._viewModelNameWindowPair.Remove(viewModelName);
+
+            window.DialogResult = false;
         }
 
         public void CloseDialog(string viewModelName, bool dialogResult)

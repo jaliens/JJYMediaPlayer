@@ -68,6 +68,7 @@ void Player::clearPacketBuffer()
         av_packet_unref(packet);
         av_packet_free(&packet);
         bufferCondVar.notify_all();
+        this->bufferRrogress_percent = this->packetBuffer.size() / (double)this->MAX_RTSP_PACKET_BUFFER_SIZE * 100;
     }
 }
 
@@ -273,6 +274,14 @@ void Player::readRtspThreadTask()
         
         if (av_read_frame(this->formatContext, packet) >= 0) //스트림에서 패킷 읽는데 성공한 경우
         {
+            //dts정보가 비정상이면 버리기
+            if (packet->dts < 0)
+            {
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                continue;
+            }
+
             //리드 시작 타이밍인 경우
             if (this->playStarted == false)
             {
@@ -353,7 +362,7 @@ void Player::readRtspThreadTask()
                     {
                         this->packetBuffer.push(p);
                         printf("push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
-
+                        this->bufferRrogress_percent = this->packetBuffer.size() / (double)this->MAX_RTSP_PACKET_BUFFER_SIZE * 100;
                         if (currentPacketBufferSize >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE)
                         {
                             this->bufferCondVar.notify_all();
@@ -404,6 +413,7 @@ void Player::readRtspThreadTask()
                     {
                         this->packetBuffer.push(p);
                         printf("remains_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
+                        this->bufferRrogress_percent = this->packetBuffer.size() / (double)this->MAX_RTSP_PACKET_BUFFER_SIZE * 100;
                         if (this->packetBuffer.size() >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE) {
                             this->bufferCondVar.notify_all();
                         }
@@ -495,6 +505,7 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                 packet = this->packetBuffer.front();
                 this->packetBuffer.pop();
                 printf(">>>>패킷 꺼냄 남은 패킷:%zu개 \n", this->packetBuffer.size());
+                this->bufferRrogress_percent = this->packetBuffer.size() / (double)this->MAX_RTSP_PACKET_BUFFER_SIZE * 100;
                 bufferCondVar.notify_all();
             }
 
@@ -869,6 +880,14 @@ void Player::readThreadTask()
         //스트림에서 패킷 읽는데 성공한 경우
         if (av_read_frame(this->formatContext, packet) >= 0) 
         {
+            //dts정보가 비정상이면 버리기
+            if (packet->dts < 0)
+            {
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                continue;
+            }
+
             //리드 시작 타이밍인 경우
             if (this->playStarted == false)
             {
@@ -1539,6 +1558,19 @@ void Player::progressCheckingThreadTask()
             {
                 //버퍼 프로그래스바 갱신
                 this->onBufferProgressCallback(this->bufferRrogress_percent);
+            }
+        }
+
+        if (this->readRtspThread != nullptr &&
+            this->readRtspThread->joinable() == true ||
+            this->decodeAndRenderRtspThread != nullptr &&
+            this->decodeAndRenderRtspThread->joinable() == true)
+        {
+            if (this->onBufferProgressCallback != nullptr)
+            {
+                //버퍼 프로그래스바 갱신
+                this->onBufferProgressCallback(this->bufferRrogress_percent);
+                this->bufferCondVar.notify_all();
             }
         }
     }

@@ -314,119 +314,128 @@ void DirectX11Renderer::RenderEmptyRect() {
 /// <param name="frame"></param>
 void DirectX11Renderer::Render(AVFrame* frame) {
     if (!frame) return;
-    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    if (frame->width != this->videoWidth_ || 
-        frame->height != this->videoHeight_ || 
-        this->texture_ == nullptr) 
+
+    try
     {
-        InitTexture(frame->width, frame->height, format);
-    }
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    // Map함수 : GPU 메모리의 텍스쳐를 CPU가 수정할 수 있게 해줌
-    this->context_->Map(this->texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-
-    uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);// 텍스쳐 데이터 포인터
-    int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄(행)이 차지하는 바이트 수
-
-    // 비디오 프레임을 텍스쳐에 복사
-    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24) {
-        // RGB 또는 BGR 포맷을 RGBA로 변환
-        for (int y = 0; y < frame->height; y++) 
+        AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
+        if (frame->width != this->videoWidth_ || 
+            frame->height != this->videoHeight_ || 
+            this->texture_ == nullptr) 
         {
-            uint8_t* src = frame->data[0];
-            for (int x = 0; x < frame->width; x++) 
-            {
-                if (format == AV_PIX_FMT_RGB24)
-                {
-                    dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 0];
-                    dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
-                    dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 2];
-                    dest[y * destPitch + x * 4 + 3] = 255;
-                }
-                else if(format == AV_PIX_FMT_RGB24)
-                {
-                    dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 2];
-                    dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
-                    dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 0];
-                    dest[y * destPitch + x * 4 + 3] = 255;
-                }
-            }
+            InitTexture(frame->width, frame->height, format);
         }
-    }
-    else if (format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA) 
-    {
-        for (int y = 0; y < frame->height; y++) 
-        {
-            // 이미 RGBA이면 그대로 복사
-            if (format == AV_PIX_FMT_RGBA)
-            {
-                memcpy(dest + y * destPitch, frame->data[0] + y * frame->linesize[0], frame->width * 4);
-            }
-            // 이미 BGRA이면 RGBA로 순서 변환
-            else if (format == AV_PIX_FMT_BGRA)
+
+        D3D11_MAPPED_SUBRESOURCE mappedResource;
+        // Map함수 : GPU 메모리의 텍스쳐를 CPU가 수정할 수 있게 해줌
+        this->context_->Map(this->texture_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+
+        uint8_t* dest = static_cast<uint8_t*>(mappedResource.pData);// 텍스쳐 데이터 포인터
+        int destPitch = mappedResource.RowPitch;// 텍스쳐의 한 줄(행)이 차지하는 바이트 수
+
+        // 비디오 프레임을 텍스쳐에 복사
+        if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24) {
+            // RGB 또는 BGR 포맷을 RGBA로 변환
+            for (int y = 0; y < frame->height; y++) 
             {
                 uint8_t* src = frame->data[0];
-                for (int x = 0; x < frame->width; x++)
+                for (int x = 0; x < frame->width; x++) 
                 {
-                    dest[y * destPitch + x * 4 + 0] = src[y * destPitch + x * 4 + 2];
-                    dest[y * destPitch + x * 4 + 1] = src[y * destPitch + x * 4 + 1];
-                    dest[y * destPitch + x * 4 + 2] = src[y * destPitch + x * 4 + 0];
-                    dest[y * destPitch + x * 4 + 3] = src[y * destPitch + x * 4 + 3];
+                    if (format == AV_PIX_FMT_RGB24)
+                    {
+                        dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 0];
+                        dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
+                        dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 2];
+                        dest[y * destPitch + x * 4 + 3] = 255;
+                    }
+                    else if(format == AV_PIX_FMT_RGB24)
+                    {
+                        dest[y * destPitch + x * 4 + 0] = src[y * frame->linesize[0] + x * 3 + 2];
+                        dest[y * destPitch + x * 4 + 1] = src[y * frame->linesize[0] + x * 3 + 1];
+                        dest[y * destPitch + x * 4 + 2] = src[y * frame->linesize[0] + x * 3 + 0];
+                        dest[y * destPitch + x * 4 + 3] = 255;
+                    }
                 }
             }
         }
-    }
-    else if (format == AV_PIX_FMT_YUV420P) {
-        // YUV420P를 RGBA로 변환
-        uint8_t* srcY = frame->data[0];
-        uint8_t* srcU = frame->data[1];
-        uint8_t* srcV = frame->data[2];
-        for (int y = 0; y < frame->height; y++) 
+        else if (format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA) 
         {
-            for (int x = 0; x < frame->width; x++) 
+            for (int y = 0; y < frame->height; y++) 
             {
-                int Y = srcY[y * frame->linesize[0] + x]; //Y는 픽셀 4개 당 4개
-                int U = srcU[(y / 2) * frame->linesize[1] + (x / 2)]; //U는 픽셀 4개(2x2) 당 1개
-                int V = srcV[(y / 2) * frame->linesize[2] + (x / 2)]; //V는 픽셀 4개(2x2) 당 1개
-
-                int R = Y + 1.402 * (V - 128);
-                int G = Y - 0.344 * (U - 128) - 0.714 * (V - 128);
-                int B = Y + 1.772 * (U - 128);
-
-                R = min(max(R, 0), 255);
-                G = min(max(G, 0), 255);
-                B = min(max(B, 0), 255);
-
-                dest[y * destPitch + x * 4 + 0] = R;
-                dest[y * destPitch + x * 4 + 1] = G;
-                dest[y * destPitch + x * 4 + 2] = B;
-                dest[y * destPitch + x * 4 + 3] = 255;
+                // 이미 RGBA이면 그대로 복사
+                if (format == AV_PIX_FMT_RGBA)
+                {
+                    memcpy(dest + y * destPitch, frame->data[0] + y * frame->linesize[0], frame->width * 4);
+                }
+                // 이미 BGRA이면 RGBA로 순서 변환
+                else if (format == AV_PIX_FMT_BGRA)
+                {
+                    uint8_t* src = frame->data[0];
+                    for (int x = 0; x < frame->width; x++)
+                    {
+                        dest[y * destPitch + x * 4 + 0] = src[y * destPitch + x * 4 + 2];
+                        dest[y * destPitch + x * 4 + 1] = src[y * destPitch + x * 4 + 1];
+                        dest[y * destPitch + x * 4 + 2] = src[y * destPitch + x * 4 + 0];
+                        dest[y * destPitch + x * 4 + 3] = src[y * destPitch + x * 4 + 3];
+                    }
+                }
             }
         }
+        else if (format == AV_PIX_FMT_YUV420P) {
+            // YUV420P를 RGBA로 변환
+            uint8_t* srcY = frame->data[0];
+            uint8_t* srcU = frame->data[1];
+            uint8_t* srcV = frame->data[2];
+            for (int y = 0; y < frame->height; y++) 
+            {
+                for (int x = 0; x < frame->width; x++) 
+                {
+                    int Y = srcY[y * frame->linesize[0] + x]; //Y는 픽셀 4개 당 4개
+                    int U = srcU[(y / 2) * frame->linesize[1] + (x / 2)]; //U는 픽셀 4개(2x2) 당 1개
+                    int V = srcV[(y / 2) * frame->linesize[2] + (x / 2)]; //V는 픽셀 4개(2x2) 당 1개
+
+                    int R = Y + 1.402 * (V - 128);
+                    int G = Y - 0.344 * (U - 128) - 0.714 * (V - 128);
+                    int B = Y + 1.772 * (U - 128);
+
+                    R = min(max(R, 0), 255);
+                    G = min(max(G, 0), 255);
+                    B = min(max(B, 0), 255);
+
+                    dest[y * destPitch + x * 4 + 0] = R;
+                    dest[y * destPitch + x * 4 + 1] = G;
+                    dest[y * destPitch + x * 4 + 2] = B;
+                    dest[y * destPitch + x * 4 + 3] = 255;
+                }
+            }
+        }
+        else {
+            // SwsContext를 사용하여 다른 포맷을 RGBA로 변환
+            uint8_t* destData[4] = { dest, nullptr, nullptr, nullptr };
+            int destLinesize[4] = { destPitch, 0, 0, 0 };
+            sws_scale(this->swsContext_, frame->data, frame->linesize, 0, frame->height, destData, destLinesize);
+        }
+
+        // Unmap : 다시 GPU에게 텍스쳐 사용권 넘김
+        this->context_->Unmap(this->texture_.Get(), 0);
+
+        // 화면(백버퍼) 지우기(초기화)
+        const float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
+        this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);
+
+        // 텍스쳐를 픽셀셰이더에 바인딩
+        this->context_->PSSetShaderResources(0, 1, this->shaderResourceView_texture.GetAddressOf());
+
+        // 텍스쳐 샘플링에 사용할 샘플러 상태 설정
+        this->context_->PSSetSamplers(0, 1, this->sampler_.GetAddressOf());
+
+        this->context_->Draw(4, 0);// 백버퍼에 랜더링 수행
+        this->swapChain_->Present(1, 0);// 백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
+
     }
-    else {
-        // SwsContext를 사용하여 다른 포맷을 RGBA로 변환
-        uint8_t* destData[4] = { dest, nullptr, nullptr, nullptr };
-        int destLinesize[4] = { destPitch, 0, 0, 0 };
-        sws_scale(this->swsContext_, frame->data, frame->linesize, 0, frame->height, destData, destLinesize);
+    catch (...)
+    {
+        printf("랜더링 에러 \n");
     }
-
-    // Unmap : 다시 GPU에게 텍스쳐 사용권 넘김
-    this->context_->Unmap(this->texture_.Get(), 0);
-
-    // 화면(백버퍼) 지우기(초기화)
-    const float clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    this->context_->ClearRenderTargetView(this->renderTargetView_.Get(), clearColor);
-
-    // 텍스쳐를 픽셀셰이더에 바인딩
-    this->context_->PSSetShaderResources(0, 1, this->shaderResourceView_texture.GetAddressOf());
-
-    // 텍스쳐 샘플링에 사용할 샘플러 상태 설정
-    this->context_->PSSetSamplers(0, 1, this->sampler_.GetAddressOf());
-
-    this->context_->Draw(4, 0);// 백버퍼에 랜더링 수행
-    this->swapChain_->Present(1, 0);// 백버퍼, 프론트 버퍼 교체하여 디스플레이(프론트 버퍼는 화면에 표시되는 것이고 백버퍼는 사전에 렌더링되는 것이다)
 }
 
 /// <summary>

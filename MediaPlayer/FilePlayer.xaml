@@ -96,6 +96,7 @@
                 HorizontalAlignment="Stretch"
                 Content="📄"
                 ToolTip="파일열기"
+                IsEnabled="{Binding IsVideoSrcSelectorEnabled}"
                 Command="{Binding ShowFileOpenWindowCommand}"/>
             <Button
                 x:Name="btn_streamOpen"
@@ -104,6 +105,7 @@
                 HorizontalAlignment="Stretch"
                 Content="📹"
                 ToolTip="RTSP스트림 열기"
+                IsEnabled="{Binding IsVideoSrcSelectorEnabled}"
                 Command="{Binding ShowStreamOpenWindowCommand}"/>
         </Grid>
 

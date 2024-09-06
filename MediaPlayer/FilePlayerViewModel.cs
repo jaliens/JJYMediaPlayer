@@ -122,6 +122,20 @@ namespace MediaPlayer
             }
         }
 
+        private bool _IsVideoSrcSelectorEnabled = true;
+        public bool IsVideoSrcSelectorEnabled
+        {
+            get
+            {
+                return this._IsVideoSrcSelectorEnabled;
+            }
+            set
+            {
+                this._IsVideoSrcSelectorEnabled = value;
+                SetProperty(nameof(this.IsVideoSrcSelectorEnabled));
+            }
+        }
+
 
         public ICommand? LoadedCommand { get; set; } = null;
         public ICommand? ShowFileOpenWindowCommand { get; set; } = null;
@@ -199,6 +213,7 @@ namespace MediaPlayer
             this.IsShowPauseButton = true;
             this.IsShowPlayButton = false;
             this.IsControlEnabled = true;
+            this.IsVideoSrcSelectorEnabled = false;
         }
 
         private void OnPauseCallback()
@@ -224,6 +239,7 @@ namespace MediaPlayer
             this.IsShowPlayButton = true;
             this.IsShowPauseButton = false;
             this.IsControlEnabled = true;
+            this.IsVideoSrcSelectorEnabled = true;
         }
 
         private void OnSeekCallback()
@@ -239,6 +255,10 @@ namespace MediaPlayer
 
         private void ProcPauseCommand(object? obj)
         {
+            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
+            {
+                return;
+            }
             this.IsControlEnabled = false;
             PlayerStatusService.Instance.Pause();
         }
