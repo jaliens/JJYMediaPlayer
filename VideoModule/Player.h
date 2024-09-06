@@ -35,6 +35,7 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
+#include <libavutil/hwcontext.h>
 #include <libswscale/swscale.h>
 
 #include <SDL.h>
@@ -62,6 +63,7 @@ public:
 
     void RegisterWindowHandle(HWND hWnd);
 
+    bool isCudaSupported();
     bool IsCudaSupportedCodec(AVCodecID codecId);
     const AVCodec* GetCudaCodecById(AVCodecID codecId);
 

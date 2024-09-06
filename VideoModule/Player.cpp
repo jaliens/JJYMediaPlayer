@@ -160,7 +160,8 @@ void Player::readRtspThreadTask()
     this->videoStream = this->formatContext->streams[video_stream_idx];
 
     //CUDA 지원이 되는 포멧이면 CUDA 지원 코덱 가져오기
-    if (this->IsCudaSupportedCodec(this->videoStream->codecpar->codec_id) == true)
+    if (this->isCudaSupported() &&
+        this->IsCudaSupportedCodec(this->videoStream->codecpar->codec_id) == true)
     {
         this->videoDecoder = this->GetCudaCodecById(this->videoStream->codecpar->codec_id);
     }
@@ -745,7 +746,8 @@ void Player::openFileStream(const char* filePath)
     this->videoStream = this->formatContext->streams[video_stream_idx];
 
     //CUDA 지원이 되는 포멧이면 CUDA 지원 코덱 가져오기
-    if (this->IsCudaSupportedCodec(this->videoStream->codecpar->codec_id) == true)
+    if (this->isCudaSupported() &&
+        this->IsCudaSupportedCodec(this->videoStream->codecpar->codec_id) == true)
     {
         this->videoDecoder = this->GetCudaCodecById(this->videoStream->codecpar->codec_id);
     }
@@ -2368,8 +2370,14 @@ void Player::DrawDirectXTestRectangle()
 
 
 
-
-
+/// <summary>
+/// CUDA를 지원하는 시스템인지 확인
+/// </summary>
+/// <returns></returns>
+bool Player::isCudaSupported() {
+    AVHWDeviceType type = av_hwdevice_find_type_by_name("cuda");
+    return type != AV_HWDEVICE_TYPE_NONE;
+}
 
 /// <summary>
 /// CUDA를 지원하는 코덱타입인지
