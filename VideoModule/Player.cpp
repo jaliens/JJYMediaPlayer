@@ -50,8 +50,26 @@ int Player::startDecodeAndRenderRtspThread()
     return 0;
 }
 
-
-
+/// <summary>
+/// 패킷 버퍼 비우기
+/// </summary>
+void Player::clearPacketBuffer()
+{
+    while (true)
+    {
+        AVPacket* packet = nullptr;
+        std::unique_lock<std::mutex> lock(this->bufferMutex);
+        if (this->packetBuffer.empty() == true)
+        {
+            break;
+        }
+        packet = this->packetBuffer.front();
+        this->packetBuffer.pop();
+        av_packet_unref(packet);
+        av_packet_free(&packet);
+        bufferCondVar.notify_all();
+    }
+}
 
 
 
@@ -244,7 +262,8 @@ void Player::readRtspThreadTask()
     bool isFirstDtsSet = false;
     int64_t firstDts = -1;
 
-    while (this->isReading == true) {
+    while (this->isReading == true) 
+    {
         if (this->isReading == false)
         {
             break;
@@ -324,7 +343,9 @@ void Player::readRtspThreadTask()
                         });
                     if (this->isReading == false)
                     {
-                        break;
+                        av_packet_unref(p);
+                        av_packet_free(&p);
+                        continue;
                     }
 
                     size_t currentPacketBufferSize = this->packetBuffer.size();
@@ -355,6 +376,9 @@ void Player::readRtspThreadTask()
         else //에러 또는 끝난 경우
         {
             printf("패킷 읽기 에러\n");
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+
             //임시버퍼에 GOP가 남아있는 경우 처리
             if (isFirstKeyFrameFound == true &&
                 tempBuffer.empty() == false)
@@ -371,13 +395,18 @@ void Player::readRtspThreadTask()
                     this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false; });
                     if (this->isReading == false)
                     {
-                        break;
+                        av_packet_unref(p);
+                        av_packet_free(&p);
+                        continue;
                     }
                     size_t currentPacketBufferSize = this->packetBuffer.size();
                     if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
                     {
                         this->packetBuffer.push(p);
-                        printf("err_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
+                        printf("remains_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
+                        if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                            this->bufferCondVar.notify_all();
+                        }
                     }
                 }
 
@@ -396,14 +425,24 @@ void Player::readRtspThreadTask()
                 }
             }
             isFirstKeyFrameFound = false;
+
+            break;
         }
+
     }
+
+    for (AVPacket* p : tempBuffer)
+    {
+        av_packet_unref(p);
+        av_packet_free(&p);
+    }
+    tempBuffer.clear();
 
     this->playStarted = false;
     this->isReading = false; 
     this->bufferCondVar.notify_all();
 
-    avcodec_free_context(&this->video_dec_ctx);
+    /*avcodec_free_context(&this->video_dec_ctx);*/
     avformat_close_input(&this->formatContext);
     avformat_network_deinit();
     sws_freeContext(this->swsCtx);
@@ -431,13 +470,18 @@ void Player::videoDecodeAndRenderRtspThreadTask()
         }
         if (this->endOfDecoding == true)
         {
+            this->clearPacketBuffer();
             return;
         }
 
+        AVFrame* frame = av_frame_alloc();
+
+        //패킷버퍼에서 꺼내고 디코딩하는 것을 반복
         while (true)
         {
             if (this->endOfDecoding == true)
             {
+                this->clearPacketBuffer();
                 return;
             }
 
@@ -461,8 +505,6 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                 continue;
             }
 
-            AVFrame* frame = av_frame_alloc();
-
             //패킷에 pts 정보가 없는 경우 임의로 넣음
             if (packet->pts == AV_NOPTS_VALUE)
             {
@@ -476,6 +518,7 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                     {
                         av_packet_unref(packet);
                         av_packet_free(&packet);
+                        this->clearPacketBuffer();
                         return;
                     }
 
@@ -508,9 +551,9 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                         if (isFirstFrameRendered == false)
                         {
                             this->directx11Renderer->Render(frame);
-                            av_frame_unref(frame);
                             isFirstFrameRendered = true;
                             firstFramePts = frame->pts;
+                            av_frame_unref(frame);
                             steady_clock::time_point now = std::chrono::high_resolution_clock::now();
                             firstFrameRenderTime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
                         }
@@ -522,20 +565,22 @@ void Player::videoDecodeAndRenderRtspThreadTask()
                             int64_t targetRenderTime_ms = firstFrameRenderTime_ms + (frame->pts - firstFramePts) * this->videoTimeBase_ms;
                             //목표 랜더 시각과 현 시각의 차이 계산 : 현 시각 - 목표 시각
                             int64_t gapOfCurrentAndTargetTime_ms = now_ms - targetRenderTime_ms;
-                            
-                            if (gapOfCurrentAndTargetTime_ms <= 0)
+                            int64_t remainTimeToRender_ms = -gapOfCurrentAndTargetTime_ms;
+
+
+                            if (remainTimeToRender_ms >= 0)
                             {//프레임 재생 지연
-                                std::this_thread::sleep_for(std::chrono::milliseconds(-gapOfCurrentAndTargetTime_ms));
+                                std::this_thread::sleep_for(std::chrono::milliseconds(remainTimeToRender_ms));
 
                                 //directX11 랜더링
                                 this->directx11Renderer->Render(frame);
-                                av_frame_unref(frame);
                                 printf("         render frame pts : %lld\n", frame->pts);
                             }
                             else 
                             {// 시간이 지났으므로 프레임 버림
-                                printf("         dump frame pts : %lld\n", frame->pts);
+                                printf("         dump frame pts : %lld    delayed %lld\n", frame->pts, -remainTimeToRender_ms);
                             }
+                            av_frame_unref(frame);
                         }
                     }
                 }
@@ -544,9 +589,15 @@ void Player::videoDecodeAndRenderRtspThreadTask()
             av_packet_unref(packet);
             av_packet_free(&packet);
             av_frame_unref(frame);
-            av_frame_free(&frame);
         }
+
+        av_frame_free(&frame);
     }
+
+    //버퍼에 남아있는 패킷 처리
+    this->clearPacketBuffer();
+
+    avcodec_free_context(&this->video_dec_ctx);
 }
 
 
@@ -893,7 +944,9 @@ void Player::readThreadTask()
                         });
                     if (this->isReading == false)
                     {
-                        break;
+                        av_packet_unref(p);
+                        av_packet_free(&p);
+                        continue;
                     }
 
                     size_t currentPacketBufferSize = this->packetBuffer.size();
@@ -922,8 +975,7 @@ void Player::readThreadTask()
             }
             
         }
-        //에러 또는 파일이 끝난 경우
-        else 
+        else //에러 또는 파일이 끝난 경우(av_read_frame 함수가 0 미만의 값을 리턴한 경우)
         {
             //임시버퍼에 GOP가 남아있는 경우 처리
             if (isFirstKeyFrameFound == true &&
@@ -939,15 +991,17 @@ void Player::readThreadTask()
                 {
                     std::unique_lock<std::mutex> lock(this->bufferMutex);
                     this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false; });
-                    if (this->isReading == false)
-                    {
-                        break;
-                    }
+                    
                     size_t currentPacketBufferSize = this->packetBuffer.size();
                     if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
                     {
                         this->packetBuffer.push(p);
                         printf("err_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
+                    }
+                    
+                    if (currentPacketBufferSize >= this->MAX_PACKET_BUFFER_SIZE)
+                    {
+                        this->bufferCondVar.notify_all();
                     }
                 }
                 tempBuffer.clear();
@@ -980,7 +1034,7 @@ void Player::readThreadTask()
                 size_t currentPacketBufferSize = this->packetBuffer.size();
                 if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
                 {
-                    //끝을 알리는 가짜 패킷
+                    //디코딩 쓰레드에게 끝을 알리기 위한 가짜 패킷 삽입
                     AVPacket* endPacket = av_packet_alloc();
                     endPacket->flags = PKT_END;
                     this->packetBuffer.push(endPacket);
@@ -992,6 +1046,13 @@ void Player::readThreadTask()
             continue;
         }
     }
+
+    for (AVPacket* p : tempBuffer)
+    {
+        av_packet_unref(p);
+        av_packet_free(&p);
+    }
+    tempBuffer.clear();
 
     this->playStarted = false;
     this->isReading = false;
@@ -1113,7 +1174,7 @@ void Player::videoDecodeAndRenderThreadTask()
                 }
                 return;
             }
-
+            
             AVPacket* packet = nullptr;
             {
                 std::unique_lock<std::mutex> lock(this->bufferMutex);
@@ -1260,11 +1321,11 @@ void Player::videoDecodeAndRenderThreadTask()
                             int64_t targetRenderTime_ms = firstFrameRenderTime_ms + (frame->pts - firstFramePts) * this->videoTimeBase_ms;
                             //목표 랜더 시각과 현 시각의 차이 계산 : 현 시각 - 목표 시각
                             int64_t gapOfCurrentAndTargetTime_ms = now_ms - targetRenderTime_ms;
-                            gapOfCurrentAndTargetTime_ms = -gapOfCurrentAndTargetTime_ms;
+                            int64_t remainTimeToRender_ms = -gapOfCurrentAndTargetTime_ms;
 
-                            if (gapOfCurrentAndTargetTime_ms >= 0)
+                            if (remainTimeToRender_ms >= 0)
                             {//프레임 재생 지연
-                                std::this_thread::sleep_for(std::chrono::milliseconds(gapOfCurrentAndTargetTime_ms));
+                                std::this_thread::sleep_for(std::chrono::milliseconds(remainTimeToRender_ms));
 
                                 //directX11 랜더링
                                 this->directx11Renderer->Render(frame);
@@ -1642,6 +1703,10 @@ int Player::stopRtsp()
         std::unique_lock<std::mutex> lock(bufferMutex);
         while (!this->packetBuffer.empty())
         {
+            AVPacket* packet = this->packetBuffer.front();
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+            delete packet;
             this->packetBuffer.pop();
         }
     }
@@ -1660,6 +1725,8 @@ int Player::stopRtsp()
     if (this->directx11Renderer != nullptr)
     {
         this->directx11Renderer->Cleanup();
+        delete this->directx11Renderer;
+        this->directx11Renderer = nullptr;
     }
 
     printf("stop return\n");
@@ -1850,6 +1917,10 @@ int Player::stop()
         std::unique_lock<std::mutex> lock(bufferMutex);
         while (!this->packetBuffer.empty())
         {
+            AVPacket* packet = this->packetBuffer.front();
+            av_packet_unref(packet);
+            av_packet_free(&packet);
+            delete packet;
             this->packetBuffer.pop();
         }
     }
@@ -1870,6 +1941,8 @@ int Player::stop()
     if (this->directx11Renderer != nullptr)
     {
         this->directx11Renderer->Cleanup();
+        delete this->directx11Renderer;
+        this->directx11Renderer = nullptr;
     }
 
     //콜백 호출
@@ -1971,6 +2044,7 @@ int Player::jumpPlayTime(double seekPercent)
                 AVPacket* packet = this->packetBuffer.front();
                 av_packet_unref(packet);
                 av_packet_free(&packet);
+                delete packet;
                 this->packetBuffer.pop();
             }
         }
@@ -2150,10 +2224,6 @@ void Player::RegisterOnStopCallback(OnStopCallbackFunction callback)
     this->onStopCallbackFunction = callback;
 }
 
-void Player::RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
-{
-    this->onRenderTimingCallbackFunction = callback;
-}
 
 void Player::RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
 {

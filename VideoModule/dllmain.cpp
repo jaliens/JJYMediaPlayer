@@ -127,11 +127,6 @@ extern "C" __declspec(dllexport) void registerOnStopCallback(OnStopCallbackFunct
     player->RegisterOnStopCallback(callback);
 }
 
-extern "C" __declspec(dllexport) void registerOnRenderTimingCallback(OnRenderTimingCallbackFunction callback)
-{
-    player->RegisterOnRenderTimingCallback(callback);
-}
-
 extern "C" __declspec(dllexport) void registerOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
 {
     player->RegisterOnVideoSizeCallback(callback);

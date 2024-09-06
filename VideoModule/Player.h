@@ -52,7 +52,6 @@ typedef void (*OnSeekCallbackFunction)();
 typedef void (*OnPauseCallbackFunction)();
 typedef void (*OnResumeCallbackFunction)();
 typedef void (*OnStopCallbackFunction)();
-typedef void (*OnRenderTimingCallbackFunction)();
 typedef void (*OnVideoSizeCallbackFunction)(int width, int height);
 
 class Player
@@ -95,7 +94,6 @@ public:
     void RegisterOnPauseCallback(OnPauseCallbackFunction callback);
     void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
     void RegisterOnStopCallback(OnStopCallbackFunction callback);
-    void RegisterOnRenderTimingCallback(OnRenderTimingCallbackFunction callback);
     void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
     void Cleanup();
 
@@ -188,7 +186,6 @@ private:
     OnPauseCallbackFunction onPauseCallbackFunction = nullptr;
     OnResumeCallbackFunction onResumeCallbackFunction = nullptr;
     OnStopCallbackFunction onStopCallbackFunction = nullptr;
-    OnRenderTimingCallbackFunction onRenderTimingCallbackFunction = nullptr;
     OnVideoSizeCallbackFunction onVideoSizeCallbackFunction = nullptr;
 
 
@@ -218,5 +215,7 @@ private:
 
     void readRtspThreadTask();
     void videoDecodeAndRenderRtspThreadTask();
+
+    void clearPacketBuffer();
 };
 

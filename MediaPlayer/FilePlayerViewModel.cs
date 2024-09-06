@@ -3,6 +3,7 @@ using Common.Mvvm;
 using MediaPlayer.Service;
 using Microsoft.Win32;
 using System;
+using System.Windows;
 using System.Windows.Input;
 
 namespace MediaPlayer
@@ -170,7 +171,6 @@ namespace MediaPlayer
             PlayerStatusService.Instance.RegisterOnResumeCallback(this.OnResumeCallback);
             PlayerStatusService.Instance.RegisterOnStopCallback(this.OnStopCallback);
             PlayerStatusService.Instance.RegisterOnSeekCallback(this.OnSeekCallback);
-            PlayerStatusService.Instance.RegisterOnRenderTimingCallback(this.OnRenderTimingCallback);
         }
 
         private void OnVideoLengthCallback(double length)
@@ -231,10 +231,6 @@ namespace MediaPlayer
             this.IsControlEnabled = true;
         }
 
-        private void OnRenderTimingCallback()
-        {
-        }
-
         private void ProcStopCommand(object obj)
         {
             this.IsControlEnabled = false;
@@ -249,6 +245,13 @@ namespace MediaPlayer
 
         private void ProcPlayCommand(object? obj)
         {
+            if (string.IsNullOrWhiteSpace(PlayerStatusService.Instance.RtspAddress) && 
+                string.IsNullOrWhiteSpace(PlayerStatusService.Instance.FileAddress))
+            {
+                MessageBox.Show("영상 소스가 설정되지 않음");
+                return;
+            }
+
             this.IsControlEnabled = false;
 
             if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
