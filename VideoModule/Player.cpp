@@ -339,7 +339,7 @@ void Player::readRtspThreadTask()
 
                     std::unique_lock<std::mutex> lock(this->bufferMutex);
                     this->bufferCondVar.wait(lock, [this] {
-                        return (this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false);
+                        return (this->packetBuffer.size() < this->MAX_RTSP_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false);
                         });
                     if (this->isReading == false)
                     {
@@ -349,12 +349,12 @@ void Player::readRtspThreadTask()
                     }
 
                     size_t currentPacketBufferSize = this->packetBuffer.size();
-                    if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
+                    if (currentPacketBufferSize < this->MAX_RTSP_PACKET_BUFFER_SIZE)
                     {
                         this->packetBuffer.push(p);
                         printf("push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
 
-                        if (currentPacketBufferSize >= this->CAN_POP_PACKET_BUFFER_SIZE)
+                        if (currentPacketBufferSize >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE)
                         {
                             this->bufferCondVar.notify_all();
                         }
@@ -368,7 +368,7 @@ void Player::readRtspThreadTask()
 
             {
                 std::lock_guard<std::mutex> lock(this->bufferMutex);
-                if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                if (this->packetBuffer.size() >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE) {
                     this->bufferCondVar.notify_all();
                 }
             }
@@ -392,7 +392,7 @@ void Player::readRtspThreadTask()
                 for (AVPacket* p : tempBuffer)
                 {
                     std::unique_lock<std::mutex> lock(this->bufferMutex);
-                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false; });
+                    this->bufferCondVar.wait(lock, [this] { return this->packetBuffer.size() < this->MAX_RTSP_PACKET_BUFFER_SIZE || this->isReadingPaused == true || this->isReading == false; });
                     if (this->isReading == false)
                     {
                         av_packet_unref(p);
@@ -400,11 +400,11 @@ void Player::readRtspThreadTask()
                         continue;
                     }
                     size_t currentPacketBufferSize = this->packetBuffer.size();
-                    if (currentPacketBufferSize < this->MAX_PACKET_BUFFER_SIZE)
+                    if (currentPacketBufferSize < this->MAX_RTSP_PACKET_BUFFER_SIZE)
                     {
                         this->packetBuffer.push(p);
                         printf("remains_ push packet DTS : %lld    buffer size : %zu\n", p->dts, currentPacketBufferSize);
-                        if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                        if (this->packetBuffer.size() >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE) {
                             this->bufferCondVar.notify_all();
                         }
                     }
@@ -419,7 +419,7 @@ void Player::readRtspThreadTask()
 
                 {
                     std::lock_guard<std::mutex> lock(this->bufferMutex);
-                    if (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE) {
+                    if (this->packetBuffer.size() >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE) {
                         this->bufferCondVar.notify_all();
                     }
                 }
@@ -464,7 +464,7 @@ void Player::videoDecodeAndRenderRtspThreadTask()
             std::unique_lock<std::mutex> lock(this->bufferMutex);
             this->bufferCondVar.wait(lock, [this] {
                 return this->packetBuffer.empty() == false &&
-                    (this->packetBuffer.size() >= this->CAN_POP_PACKET_BUFFER_SIZE || this->isReading == false) ||
+                    (this->packetBuffer.size() >= this->CAN_POP_RTSP_PACKET_BUFFER_SIZE || this->isReading == false) ||
                     this->endOfDecoding == true;
                 });
         }

@@ -202,6 +202,8 @@ private:
     std::condition_variable waitingAfterCommandFlagCondVar;
     const int MAX_PACKET_BUFFER_SIZE = 60;//패킷버퍼 최대 사이즈
     const int CAN_POP_PACKET_BUFFER_SIZE = 30;//디코딩을 시작할 수 있는 최소 패킷 버퍼사이즈 
+    const int MAX_RTSP_PACKET_BUFFER_SIZE = 1000;//RTSP 패킷버퍼 최대 사이즈
+    const int CAN_POP_RTSP_PACKET_BUFFER_SIZE = 100;//RTSP 디코딩을 시작할 수 있는 최소 패킷 버퍼사이즈 
 
 
     static std::atomic<bool> decoding;
