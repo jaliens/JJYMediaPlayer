@@ -13,7 +13,7 @@ namespace MediaPlayer
     {
 
 
-        private string _RTSPAddress = "rtsp://localhost:8554/sex";//string.Empty;
+        private string _RTSPAddress = "rtsp://localhost:8554/sss";//string.Empty;
         /// <summary>
         /// RTSP서버 주소(영상 스트리밍의 소스)
         /// </summary>
