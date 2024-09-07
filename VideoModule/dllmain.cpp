@@ -132,6 +132,11 @@ extern "C" __declspec(dllexport) void registerOnVideoSizeCallback(OnVideoSizeCal
     player->RegisterOnVideoSizeCallback(callback);
 }
 
+extern "C" __declspec(dllexport) void registerOnFailedCallback(OnFailedCallbackFunction callback)
+{
+    player->RegisterOnFailedCallback(callback);
+}
+
 
 
 
@@ -295,11 +300,14 @@ extern "C" __declspec(dllexport) void jumpPlayTime(double targetPercent)
 /// <summary>
 /// Rtsp재생
 /// </summary>
-extern "C" __declspec(dllexport) void playRtsp(const char* rtspPath)
+extern "C" __declspec(dllexport) bool playRtsp(const char* rtspPath)
 {
-    player->playRtsp(rtspPath);
+    if (player->playRtsp(rtspPath) == false)
+    {
+        return false;
+    }
 
-    return;
+    return true;
 }
 
 /// <summary>

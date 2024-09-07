@@ -186,6 +186,7 @@ namespace MediaPlayer
             PlayerStatusService.Instance.RegisterOnResumeCallback(this.OnResumeCallback);
             PlayerStatusService.Instance.RegisterOnStopCallback(this.OnStopCallback);
             PlayerStatusService.Instance.RegisterOnSeekCallback(this.OnSeekCallback);
+            PlayerStatusService.Instance.RegisterOnFailedCallback(this.OnFailedCallback);
         }
 
         private void OnVideoLengthCallback(double length)
@@ -254,6 +255,11 @@ namespace MediaPlayer
             this.IsControlEnabled = true;
         }
 
+        private void OnFailedCallback()
+        {
+            PlayerStatusService.Instance.Stop();
+        }
+
         private void ProcStopCommand(object obj)
         {
             this.IsControlEnabled = false;
@@ -287,7 +293,10 @@ namespace MediaPlayer
             }
             else if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
             {
-                PlayerStatusService.Instance.PlayRtsp();
+                if (PlayerStatusService.Instance.PlayRtsp() == false)
+                {
+                    MessageBox.Show("재생 실패");
+                }
             }
         }
 

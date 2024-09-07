@@ -753,9 +753,6 @@ void Player::openFileStream(const char* filePath)
     }
     else
     {
-
-    }
-    {
         this->videoDecoder = avcodec_find_decoder(this->videoStream->codecpar->codec_id);
     }
 
@@ -1696,11 +1693,14 @@ void Player::progressCheckingThreadTask()
 
 
 
-int Player::playRtsp(const char* rtspPath)
+bool Player::playRtsp(const char* rtspPath)
 {
     //std::lock_guard<std::mutex> decodingPauseMutexLock(this->commandMutex);
     this->stopRtsp();
-    this->openRtspStream(rtspPath);
+    if (this->openRtspStream(rtspPath) == false)
+    {
+        return false;
+    }
     this->startReadRtspThread();
     this->startDecodeAndRenderRtspThread();
 
@@ -1708,7 +1708,7 @@ int Player::playRtsp(const char* rtspPath)
     {
         this->onStartCallbackFunction();
     }
-    return 0;
+    return true;
 }
 
 int Player::stopRtsp()
@@ -2265,6 +2265,12 @@ void Player::RegisterOnStopCallback(OnStopCallbackFunction callback)
 void Player::RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback)
 {
     this->onVideoSizeCallbackFunction = callback;
+}
+
+
+void Player::RegisterOnFailedCallback(OnFailedCallbackFunction callback)
+{
+    this->onFailedCallbackFunction = callback;
 }
 
 

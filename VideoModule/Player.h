@@ -54,6 +54,7 @@ typedef void (*OnPauseCallbackFunction)();
 typedef void (*OnResumeCallbackFunction)();
 typedef void (*OnStopCallbackFunction)();
 typedef void (*OnVideoSizeCallbackFunction)(int width, int height);
+typedef void (*OnFailedCallbackFunction)();
 
 class Player
 {
@@ -81,7 +82,7 @@ public:
     int stop();
     int jumpPlayTime(double seekPercent);
 
-    int playRtsp(const char* filePath);
+    bool playRtsp(const char* filePath);
     int stopRtsp();
 
     void renderFrame();
@@ -97,6 +98,7 @@ public:
     void RegisterOnResumeCallback(OnResumeCallbackFunction callback);
     void RegisterOnStopCallback(OnStopCallbackFunction callback);
     void RegisterOnVideoSizeCallback(OnVideoSizeCallbackFunction callback);
+    void RegisterOnFailedCallback(OnFailedCallbackFunction callback);
     void Cleanup();
 
     void DrawDirectXTestRectangle();
@@ -189,6 +191,7 @@ private:
     OnResumeCallbackFunction onResumeCallbackFunction = nullptr;
     OnStopCallbackFunction onStopCallbackFunction = nullptr;
     OnVideoSizeCallbackFunction onVideoSizeCallbackFunction = nullptr;
+    OnFailedCallbackFunction onFailedCallbackFunction = nullptr;
 
 
     

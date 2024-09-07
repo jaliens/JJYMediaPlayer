@@ -121,13 +121,14 @@ namespace MediaPlayer.Service
         }
 
 
-        public void PlayRtsp()
+        public bool PlayRtsp()
         {
             if (this.PlayerMode == Mode.Rtsp &&
                 string.IsNullOrWhiteSpace(this._RtspAddress) == false)
             {
-                playRtsp(this._RtspAddress);
+                return playRtsp(this._RtspAddress);
             }
+            return false;
         }
 
         public void StopRtsp()
@@ -259,6 +260,13 @@ namespace MediaPlayer.Service
             GC.KeepAlive(this._videoSizeCallback);
         }
 
+        public void RegisterOnFailedCallback(OnFailedCallbackFunction callback)
+        {
+            this._failedCallback = callback;
+            registerOnFailedCallback(callback);
+            GC.KeepAlive(this._failedCallback);
+        }
+
 
 
 
@@ -288,6 +296,8 @@ namespace MediaPlayer.Service
         public delegate void OnVideoSizeCallbackFunction(int width, int height);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void OnCommandCompleteCallbackFunction();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void OnFailedCallbackFunction();
 
 
         private ImageCallback? _imageCallBack = null;
@@ -302,13 +312,14 @@ namespace MediaPlayer.Service
         private OnSeekCallbackFunction? _seekCallback = null;
         private OnVideoSizeCallbackFunction? _videoSizeCallback = null;
         private OnCommandCompleteCallbackFunction? _commandCompleteCallback = null;
+        private OnFailedCallbackFunction? _failedCallback = null;
 
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern bool initRtspPlayer(string rtspAddress);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void playRtsp(string rtspPath);
+        private static extern bool playRtsp(string rtspPath);
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void stopRtsp();
@@ -390,6 +401,9 @@ namespace MediaPlayer.Service
 
         [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void registerOnCommandCompleteCallback(OnCommandCompleteCallbackFunction callback);
+
+        [DllImport("VideoModule.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void registerOnFailedCallback(OnFailedCallbackFunction callback);
 
 
 
