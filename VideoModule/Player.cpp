@@ -753,6 +753,9 @@ void Player::openFileStream(const char* filePath)
     }
     else
     {
+
+    }
+    {
         this->videoDecoder = avcodec_find_decoder(this->videoStream->codecpar->codec_id);
     }
 

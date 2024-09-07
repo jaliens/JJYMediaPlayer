@@ -1,5 +1,6 @@
 ﻿using Common.CustomControl;
 using Common.Mvvm;
+using MediaPlayer.Message;
 using MediaPlayer.Service;
 using Microsoft.Win32;
 using System;
@@ -210,7 +211,10 @@ namespace MediaPlayer
 
         private void OnStartCallback()
         {
-            this.IsShowPauseButton = true;
+            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
+            {
+                this.IsShowPauseButton = true;
+            }
             this.IsShowPlayButton = false;
             this.IsControlEnabled = true;
             this.IsVideoSrcSelectorEnabled = false;
@@ -225,7 +229,10 @@ namespace MediaPlayer
 
         private void OnResumeCallback()
         {
-            this.IsShowPauseButton = true;
+            if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.File)
+            {
+                this.IsShowPauseButton = true;
+            }
             this.IsShowPlayButton = false;
             this.IsControlEnabled = true;
         }
@@ -297,6 +304,13 @@ namespace MediaPlayer
         private void ProcShowStreamOpenWindowCommand(object? param)
         {
             App.DialogService.ShowDialog("StreamOpenWindowViewModel", out bool dialogResult);
+            if (dialogResult == true)
+            {
+                if (PlayerStatusService.Instance.PlayerMode == PlayerStatusService.Mode.Rtsp)
+                {
+                    this.IsShowPauseButton = false;
+                }
+            }
         }
     }
 }
